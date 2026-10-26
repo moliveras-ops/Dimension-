@@ -92,6 +92,15 @@ dialog::backdrop{background:rgba(5,9,13,.6)}
 .arBar button,.arTop button{min-height:52px;padding:10px 18px;font-size:16px;background:rgba(20,32,43,.85);color:#fff;border-color:rgba(255,255,255,.3)}
 .arBar #arAdd{background:#f5c518;color:#1d1600;border-color:transparent;font-size:18px;min-width:120px}
 .arRead{position:absolute;left:0;right:0;bottom:calc(170px + env(safe-area-inset-bottom,0px));text-align:center;font-family:var(--f-mono);font-size:40px;pointer-events:none;font-weight:500;text-shadow:0 2px 6px #000;font-variant-numeric:tabular-nums}
+.thumbs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.th{flex-direction:column;align-items:stretch;padding:0;gap:0;overflow:hidden;background:var(--bg);min-height:0}
+.th img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;max-width:100%}
+.th span{font-family:var(--f-mono);font-size:11px;font-weight:500;padding:4px 6px;color:var(--muted);text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#pv{width:min(960px,calc(100% - 16px))}
+.pvBox{overflow:auto;max-height:66svh;background:#000;border-radius:5px;touch-action:pan-x pan-y pinch-zoom}
+#pvImg{display:block;width:100%;max-width:100%;cursor:zoom-in}
+#pvImg.zoom{width:250%;max-width:none;cursor:zoom-out}
+#pvCap{font-family:var(--f-mono);font-size:13px;margin:0;font-variant-numeric:tabular-nums;word-break:break-word}
 #printArea{display:none}
 @media print{body>*:not(#printArea){display:none!important}#printArea{display:block}:root{padding:0!important}}
 .x{min-height:32px;padding:4px 8px;background:transparent}
@@ -157,6 +166,11 @@ dialog::backdrop{background:rgba(5,9,13,.6)}
         <div class="res" id="res"></div>
       </div>
 
+      <div class="card">
+        <div class="row" style="justify-content:space-between"><span class="lbl">Imágenes con dimensiones</span><button id="galSave">Guardar vista actual</button></div>
+        <div class="thumbs" id="gal"></div>
+      </div>
+
       <p class="hint">Calibra en el mismo plano que lo que mides: marcador apoyado sobre la superficie, o un tubo de la misma pared. Mantén el teléfono lo más perpendicular posible y llena la foto con la zona de interés. Mantén presionado para afinar el punto con la lupa.</p>
     </div>
   </div>
@@ -174,6 +188,17 @@ dialog::backdrop{background:rgba(5,9,13,.6)}
   </form>
 </dialog>
 <div id="printArea"></div>
+<dialog id="pv">
+  <div class="dlg">
+    <div class="row" style="justify-content:space-between"><span class="lbl" id="pvN"></span><button class="x" id="pvClose" aria-label="Cerrar">✕</button></div>
+    <div class="pvBox" id="pvBox"><img id="pvImg" alt="Imagen con dimensiones"></div>
+    <p id="pvCap"></p>
+    <div class="row" style="justify-content:space-between">
+      <div class="row"><button id="pvPrev" aria-label="Anterior">◀</button><button id="pvNext" aria-label="Siguiente">▶</button></div>
+      <div class="row"><button id="pvShare" class="primary">Compartir / guardar</button><button id="pvDel">Borrar</button></div>
+    </div>
+  </div>
+</dialog>
 <div id="arUI" hidden>
   <svg id="arSvg"></svg>
   <div class="arTop"><span id="arStatus">Mueve el teléfono despacio sobre la superficie.</span><button id="arExit">Salir</button></div>
@@ -392,6 +417,44 @@ $('#lShare').onclick=()=>$('#lcv').toBlob(async b=>{const name=`etiqueta_M${labM
 
 let tt;function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,2600);}
 
+/* ---------- galería de imágenes ---------- */
+let gal=[],gi=0,db=null;
+const capOf=list=>list.map(m=>`M${m.n} ${fmt(m)}`).join(' · ');
+function dbOpen(){return new Promise(res=>{try{const r=indexedDB.open('medidor-foto',1);r.onupgradeneeded=()=>r.result.createObjectStore('img',{keyPath:'id'});
+  r.onsuccess=()=>res(r.result);r.onerror=()=>res(null);}catch(e){res(null);}});}
+function dbPut(x){try{if(db&&!x.temp)db.transaction('img','readwrite').objectStore('img').put({id:x.id,blob:x.blob,cap:x.cap,date:x.date});}catch(e){}}
+function dbDel(id){try{if(db)db.transaction('img','readwrite').objectStore('img').delete(id);}catch(e){}}
+function addGal(c,cap,temp){c.toBlob(b=>{if(!b)return;const x={id:Date.now()+Math.random(),blob:b,cap:cap||'Sin mediciones',temp:!!temp,
+  date:temp?'Ejemplo':new Date().toLocaleString('es-CL',{dateStyle:'short',timeStyle:'short'}),url:URL.createObjectURL(b)};
+  if(!temp)gal=gal.filter(g=>!g.temp);gal.push(x);dbPut(x);renderGal();},'image/jpeg',.88);}
+function renderGal(){const g=$('#gal');
+  if(!gal.length){g.innerHTML='<p class="none" style="grid-column:1/-1">Guarda la vista actual o usa Foto en la RA. Las imágenes quedan en este teléfono.</p>';return;}
+  g.innerHTML='';gal.forEach((x,i)=>{const b=document.createElement('button');b.className='th';b.setAttribute('aria-label',`Ver imagen ${i+1}`);
+    b.innerHTML=`<img alt=""><span></span>`;b.querySelector('img').src=x.url;b.querySelector('span').textContent=x.date;b.onclick=()=>{gi=i;showPv();$('#pv').showModal();};g.appendChild(b);});}
+function fullRender(){const c=document.createElement('canvas');c.width=iw();c.height=ih();const ps=sel;sel=null;render(c.getContext('2d'),p=>p,Math.max(1,iw()/900));sel=ps;return c;}
+function showPv(){const x=gal[gi];if(!x){$('#pv').close();return;}$('#pvImg').src=x.url;$('#pvImg').classList.remove('zoom');
+  $('#pvCap').textContent=x.cap;$('#pvN').textContent=`Imagen ${gi+1} de ${gal.length} · ${x.date}`;$('#pvDel').textContent='Borrar';$('#pvDel').dataset.arm='';
+  $('#pvPrev').disabled=gi===0;$('#pvNext').disabled=gi===gal.length-1;}
+$('#galSave').onclick=()=>{if(!img)return toast('Primero toma una foto.');const ph=measures.filter(m=>m.pts.length);addGal(fullRender(),capOf(ph));toast('Vista guardada en Imágenes.');};
+$('#pvClose').onclick=()=>$('#pv').close();
+$('#pvPrev').onclick=()=>{if(gi>0){gi--;showPv();}};$('#pvNext').onclick=()=>{if(gi<gal.length-1){gi++;showPv();}};
+let sw0=null;
+$('#pvImg').addEventListener('pointerdown',e=>sw0=[e.clientX,e.clientY]);
+$('#pvImg').addEventListener('pointerup',e=>{if(!sw0)return;const dx=e.clientX-sw0[0],dy=e.clientY-sw0[1];sw0=null;
+  const z=$('#pvImg').classList.contains('zoom');
+  if(!z&&Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)){if(dx<0&&gi<gal.length-1)gi++;else if(dx>0&&gi>0)gi--;showPv();}
+  else if(Math.abs(dx)<8&&Math.abs(dy)<8){const box=$('#pvBox'),r=$('#pvImg').getBoundingClientRect(),fx=(e.clientX-r.left)/r.width,fy=(e.clientY-r.top)/r.height;
+    $('#pvImg').classList.toggle('zoom');if(!z)requestAnimationFrame(()=>{box.scrollLeft=fx*box.scrollWidth-box.clientWidth/2;box.scrollTop=fy*box.scrollHeight-box.clientHeight/2;});}});
+$('#pvShare').onclick=async()=>{const x=gal[gi];if(!x)return;const name=`medicion_${stamp()}.jpg`,f=new File([x.blob],name,{type:'image/jpeg'});
+  if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:name,text:x.cap});return;}catch(e){if(e.name==='AbortError')return;}}
+  save(x.blob,name);};
+$('#pvDel').onclick=e=>{const b=e.currentTarget;if(!b.dataset.arm){b.dataset.arm='1';b.textContent='Confirmar borrar';return;}
+  const x=gal[gi];if(!x)return;dbDel(x.id);URL.revokeObjectURL(x.url);gal.splice(gi,1);if(gi>=gal.length)gi=gal.length-1;renderGal();if(gal.length)showPv();else $('#pv').close();};
+(async()=>{db=await dbOpen();let rows=[];
+  if(db){try{rows=await new Promise(res=>{const q=db.transaction('img').objectStore('img').getAll();q.onsuccess=()=>res(q.result||[]);q.onerror=()=>res([]);});}catch(e){}}
+  gal=rows.sort((a,b)=>a.id-b.id).map(x=>({...x,url:URL.createObjectURL(x.blob)}));
+  if(!gal.length&&isSample&&img)addGal(fullRender(),capOf(measures),true);else renderGal();})();
+
 /* ---------- realidad aumentada en vivo ---------- */
 let xr=null,arShots=[];
 const AXES=['libre','H','V'];
@@ -414,7 +477,7 @@ $('#arBtn').onclick=async()=>{
   session.requestAnimationFrame(arFrame);};
 function arEnd(){if(!xr)return;try{xr.hts.cancel()}catch(_){};xr=null;$('#arUI').hidden=true;
   if(arShots.length){img=arShots[arShots.length-1];isSample=false;marker=[];H=null;cur=[];mode='marker';fit();ui();
-    toast(arShots.length>1?`${arShots.length} fotos RA; se muestra la última. Usa Imagen para guardarla.`:'Foto RA en el visor. Usa Imagen para guardarla.');}
+    toast(arShots.length>1?`${arShots.length} fotos RA guardadas en Imágenes.`:'Foto RA guardada en Imágenes y abierta en el visor.');}
   renderList();draw();}
 function arFrame(t,f){if(!xr)return;const s=xr.session;s.requestAnimationFrame(arFrame);
   const gl=xr.gl;gl.bindFramebuffer(gl.FRAMEBUFFER,s.renderState.baseLayer.framebuffer);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
@@ -481,7 +544,7 @@ function arCapture(view){try{
   g.font=`500 ${13*u}px "IBM Plex Mono",monospace`;g.textAlign='left';g.textBaseline='bottom';g.fillStyle='rgba(8,12,16,.8)';
   const stampTxt=new Date().toLocaleString('es-CL',{dateStyle:'short',timeStyle:'short'})+' · medición RA';g.fillRect(0,h-26*u,g.measureText(stampTxt).width+20*u,26*u);
   g.fillStyle='#fff';g.fillText(stampTxt,10*u,h-7*u);
-  arShots.push(c);buzz();arSt(`Foto ${arShots.length} guardada`);
+  arShots.push(c);addGal(c,xr.segs.map(g=>`M${g.n} ${f1(g.v)} cm ${g.ax}`).join(' · ')||'Medición RA');buzz();arSt(`Foto ${arShots.length} guardada`);
 }catch(e){arSt('Este teléfono no permite foto durante la RA (activa chrome://flags → WebXR Raw Camera Access).');}}
 
 /* ---------- instalación ---------- */

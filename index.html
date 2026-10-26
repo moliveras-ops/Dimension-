@@ -448,7 +448,7 @@ function arDraw(){const W=innerWidth,Hh=innerHeight,cx=W/2,cy=Hh/2,stab=near().l
   $('#arSvg').innerHTML=o;
   $('#arRead').textContent=xr.pts.length===1&&xr.hit?`${f1(d3(xr.pts[0],lockPt(xr.pts[0],xr.hit))*100)} cm`:'';
   if(!xr.hit)arSt('Buscando superficie… mueve el teléfono despacio.');
-  else{const dd=d3(xr.cam,xr.hit);arSt(`${xr.segs.length} medidas · superficie a ${dd.toFixed(2)} m`+(dd>1.5?' · acércate':'')+(stab?'':' · quieto…'));}}
+  else{const dd=d3(xr.cam,xr.hit);arSt(`${xr.segs.length} medidas · superficie a ${dd.toFixed(2)} m`+(dd>1.5?' · acércate':dd<0.4?' · aléjate un poco, la cámara RA no enfoca tan cerca':'')+(stab?'':' · quieto…'));}}
 function arAdd(){if(!xr)return;if(!xr.hit)return arSt('Aún no hay superficie bajo el círculo.');
   const p=lockPt(xr.pts[0],stable());xr.pts.push(p);buzz();
   if(xr.pts.length===2){const[a,b]=xr.pts,v=d3(a,b)*100,ax=xr.axis?AXES[xr.axis]:axisOf(a,b);

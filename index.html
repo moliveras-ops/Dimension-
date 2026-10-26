@@ -6,7 +6,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>Medidor por Foto IQS</title>
+<title>Medidor por Foto</title>
 <meta name="theme-color" content="#14202b">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -58,7 +58,8 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .modes{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .modes button{flex-direction:column;justify-content:center;gap:2px;padding:8px 4px;font-size:13px}
 .modes button svg{width:22px;height:22px}
-.modes button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.modes button[aria-pressed="true"],.seg button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
 input[type=number],input[type=text]{font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:5px;padding:8px 10px;min-height:40px}
 input[type=number]{width:96px;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
 .scale{font-family:var(--f-mono);font-size:13px;font-variant-numeric:tabular-nums}
@@ -70,7 +71,16 @@ input[type=number]{width:96px;font-family:var(--f-mono);font-variant-numeric:tab
 .tag{font-family:var(--f-display);font-weight:700;font-size:18px;background:var(--fg);color:var(--bg);border-radius:3px;padding:0 6px;min-width:34px;text-align:center}
 .kind{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
 .vals{font-family:var(--f-mono);font-size:15px;font-variant-numeric:tabular-nums;grid-column:2/4;word-break:break-word}
-.item input{grid-column:1/4;min-height:34px;padding:6px 8px;font-size:13px}
+.item input{grid-column:1/3;min-height:34px;padding:6px 8px;font-size:13px;min-width:0}
+.lab{min-height:34px;padding:4px 10px;font-size:13px}
+select{font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:5px;padding:8px 10px;min-height:40px}
+dialog{background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:0;width:min(440px,calc(100% - 32px))}
+dialog::backdrop{background:rgba(5,9,13,.6)}
+.dlg{display:grid;gap:12px;padding:14px}
+.lprev{background:var(--chip);padding:12px;display:grid;place-items:center;border-radius:5px}
+#lcv{max-width:100%;height:auto;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+#printArea{display:none}
+@media print{body>*:not(#printArea){display:none!important}#printArea{display:block}:root{padding:0!important}}
 .x{min-height:32px;padding:4px 8px;background:transparent}
 .none{color:var(--muted);font-size:14px;margin:0}
 .hint{color:var(--muted);font-size:13px;margin:0;max-width:65ch}
@@ -83,7 +93,7 @@ input[type=number]{width:96px;font-family:var(--f-mono);font-variant-numeric:tab
 <body>
 <div class="wrap">
   <header>
-    <div class="brand"><h1>Medidor<b>IQS</b></h1><span>Dimensionamiento por foto con marcador</span></div>
+    <div class="brand"><h1>Medidor<b>Foto</b></h1><span>Dimensionamiento por foto con marcador</span></div>
     <div class="row">
       <button id="install" class="primary" hidden>Instalar app</button>
       <label class="btn primary" for="fCam">
@@ -100,18 +110,17 @@ input[type=number]{width:96px;font-family:var(--f-mono);font-variant-numeric:tab
       <canvas id="cv"></canvas>
       <canvas id="loupe" hidden></canvas>
       <div class="badge" id="badge" hidden>EJEMPLO</div>
-      <div class="empty" id="empty" hidden><p>Toma una foto con el marcador sobre la superficie a medir.</p></div>
+      <div class="empty" id="empty" hidden><p>Toma una foto con el marcador o con un tubo de diámetro conocido a la vista.</p></div>
     </div>
 
     <div class="panel">
       <div class="card">
-        <span class="lbl">Marcador de referencia</span>
-        <div class="row">
-          <label for="mSize">Lado real</label>
-          <input id="mSize" type="number" step="0.1" min="1" value="10"> <span>cm</span>
-          <button id="recal">Recalibrar</button>
-        </div>
-        <span class="scale" id="scale">Sin calibrar</span>
+        <span class="lbl">Calibración</span>
+        <div class="seg" id="calSeg"><button data-c="marker" aria-pressed="true">Marcador</button><button data-c="tube" aria-pressed="false">Diámetro de tubo</button></div>
+        <div class="row" id="rowMarker"><label for="mSize">Lado del marcador</label><input id="mSize" type="number" step="0.1" min="1" value="10"> <span>cm</span></div>
+        <div class="row" id="rowTube" hidden><label for="tOD">Ø exterior del tubo</label><input id="tOD" type="number" step="0.1" min="5" value="63.5"> <span>mm</span></div>
+        <p class="hint" id="tubeHint" hidden>Toca los dos bordes del tubo, perpendicular a su eje. Sin marcador no hay corrección de perspectiva: toma la foto de frente y mide en el mismo plano que el tubo.</p>
+        <div class="row"><button id="recal">Recalibrar</button><span class="scale" id="scale">Sin calibrar</span></div>
       </div>
 
       <div class="card">
@@ -134,11 +143,23 @@ input[type=number]{width:96px;font-family:var(--f-mono);font-variant-numeric:tab
         <div class="res" id="res"></div>
       </div>
 
-      <p class="hint">Pon el marcador en el mismo plano que lo que mides. Mantén el teléfono lo más perpendicular posible y llena la foto con la zona de interés. Mantén presionado para afinar el punto con la lupa.</p>
+      <p class="hint">Calibra en el mismo plano que lo que mides: marcador apoyado sobre la superficie, o un tubo de la misma pared. Mantén el teléfono lo más perpendicular posible y llena la foto con la zona de interés. Mantén presionado para afinar el punto con la lupa.</p>
     </div>
   </div>
 </div>
 <div class="toast" id="toast" hidden></div>
+<dialog id="dlg">
+  <form method="dialog" class="dlg">
+    <div class="row" style="justify-content:space-between"><span class="lbl">Etiqueta</span><button class="x" value="close" aria-label="Cerrar">✕</button></div>
+    <div class="row"><label for="lSize">Tamaño</label>
+      <select id="lSize"><option value="62x29">62 × 29 mm (Brother DK)</option><option value="50x30" selected>50 × 30 mm</option><option value="100x50">100 × 50 mm</option><option value="102x76">102 × 76 mm (4 × 3 in)</option></select></div>
+    <label class="row" for="lPhoto"><input type="checkbox" id="lPhoto" checked> Incluir recorte de la foto</label>
+    <div class="lprev"><canvas id="lcv"></canvas></div>
+    <div class="row"><button type="button" id="lPrint" class="primary">Imprimir</button><button type="button" id="lShare">Compartir / guardar PNG</button></div>
+    <p class="hint">Impresora de etiquetas Bluetooth (Brother, Zebra, Niimbot): toca Compartir y elige la app de la impresora. Impresora normal: Imprimir.</p>
+  </form>
+</dialog>
+<div id="printArea"></div>
 
 <script>
 (()=>{
@@ -147,10 +168,12 @@ const cv=$('#cv'),ctx=cv.getContext('2d'),loupe=$('#loupe'),lctx=loupe.getContex
 const C_MARK='#22d3ee',C_MEAS='#ffd400',C_SEL='#ff6b2c';
 const NEED={marker:4,dist:2,diam:2,rect:4};
 const NAMES={dist:'Largo',diam:'Diámetro',rect:'Parche',poly:'Área libre'};
+let calMode='marker',OD=63.5;
 let img=null,isSample=false,S=10,marker=[],H=null,mode='marker',measMode='rect',cur=[],measures=[],seq=0,sel=null;
 let view={k:1,ox:0,oy:0},dpr=1,drag=null;
-try{const v=parseFloat(localStorage.getItem('mSize'));if(v>0)S=v;}catch(e){}
-$('#mSize').value=S;
+try{const v=parseFloat(localStorage.getItem('mSize'));if(v>0)S=v;const o=parseFloat(localStorage.getItem('tOD'));if(o>0)OD=o;}catch(e){}
+$('#mSize').value=S;$('#tOD').value=OD;
+const needCal=()=>calMode==='marker'?4:2;
 
 /* ---------- geometría ---------- */
 function solve(A,b){const n=b.length,M=A.map((r,i)=>[...r,b[i]]);
@@ -169,7 +192,8 @@ function sortQuad(q){const cx=q.reduce((s,p)=>s+p[0],0)/4,cy=q.reduce((s,p)=>s+p
   const s=[...q].sort((a,b)=>Math.atan2(a[1]-cy,a[0]-cx)-Math.atan2(b[1]-cy,b[0]-cx));
   let i0=0;s.forEach((p,i)=>{if(p[0]+p[1]<s[i0][0]+s[i0][1])i0=i;});return[...s.slice(i0),...s.slice(0,i0)];}
 function calib(){
-  if(marker.length<4){H=null;return;}
+  if(marker.length<needCal()){H=null;return;}
+  if(calMode==='tube'){const px=dist(marker[0],marker[1]);if(px<1){H=null;return;}const s=OD/10/px;H=[s,0,0,0,s,0,0,0,1];return;}
   const q=sortQuad(marker);H=homog(q,[[0,0],[S,0],[S,S],[0,S]]);}
 function calc(m){if(!H)return null;const q=m.pts.map(p=>apply(H,p));
   if(m.type==='dist'||m.type==='diam')return{v:dist(q[0],q[1])};
@@ -199,8 +223,8 @@ function render(g,T,u){ // T: imagen->lienzo, u: escala de grosor
     g.beginPath();g.moveTo(s[0]-3*u,s[1]);g.lineTo(s[0]+3*u,s[1]);g.moveTo(s[0],s[1]-3*u);g.lineTo(s[0],s[1]+3*u);g.stroke();};
   const label=(p,txt,col)=>{const s=T(p);g.font=`600 ${13*u}px "IBM Plex Mono",ui-monospace,monospace`;const w=g.measureText(txt).width+12*u,h=22*u;
     g.fillStyle='rgba(8,12,16,.82)';g.fillRect(s[0]-w/2,s[1]-h/2,w,h);g.fillStyle=col;g.textAlign='center';g.textBaseline='middle';g.fillText(txt,s[0],s[1]+1*u);};
-  if(marker.length){path(marker.length===4?sortQuad(marker):marker,marker.length===4);stroke(C_MARK,2,false);marker.forEach(p=>dot(p,C_MARK));
-    if(marker.length===4){const c=sortQuad(marker);label([(c[0][0]+c[1][0])/2,(c[0][1]+c[1][1])/2],`REF ${f1(S)} cm`,C_MARK);}}
+  if(marker.length){const quad=calMode==='marker'&&marker.length===4,q=quad?sortQuad(marker):marker;path(q,quad);stroke(C_MARK,2,false);marker.forEach(p=>dot(p,C_MARK));
+    if(H&&q.length>=2)label([(q[0][0]+q[1][0])/2,(q[0][1]+q[1][1])/2],calMode==='marker'?`REF ${f1(S)} cm`:`Ø REF ${f1(OD)} mm`,C_MARK);}
   measures.forEach(m=>{const col=m.id===sel?C_SEL:C_MEAS;path(m.pts,m.type==='rect'||m.type==='poly');stroke(col,2.5,false);m.pts.forEach(p=>dot(p,col));
     const c=m.type==='dist'||m.type==='diam'?[(m.pts[0][0]+m.pts[1][0])/2,(m.pts[0][1]+m.pts[1][1])/2]:[m.pts.reduce((s,p)=>s+p[0],0)/m.pts.length,m.pts.reduce((s,p)=>s+p[1],0)/m.pts.length];
     label(c,`M${m.n} ${fmt(m,true)}`,col);});
@@ -222,7 +246,7 @@ function hit(s){let best=null,bd=24;
   const test=(arr,owner)=>arr.forEach((p,i)=>{const d=dist(toScr(p),s);if(d<bd){bd=d;best={arr,i,owner};}});
   test(marker,'marker');test(cur,'cur');measures.forEach(m=>test(m.pts,m));return best;}
 const target=()=>mode==='marker'?marker:cur;
-function canAdd(){if(mode==='marker')return marker.length<4;if(!H)return false;return mode==='poly'||cur.length<NEED[mode];}
+function canAdd(){if(mode==='marker')return marker.length<needCal();if(!H)return false;return mode==='poly'||cur.length<NEED[mode];}
 cv.addEventListener('pointerdown',e=>{if(!img)return;e.preventDefault();cv.setPointerCapture(e.pointerId);const s=evPt(e);
   const h=hit(s);
   if(h){const p=h.arr[h.i],sp=toScr(p);drag={...h,off:[sp[0]-s[0],sp[1]-s[1]]};if(h.owner!=='marker'&&h.owner!=='cur'){sel=h.owner.id;renderList();}}
@@ -235,7 +259,7 @@ const end=()=>{if(!drag)return;drag=null;loupe.hidden=true;after();};
 cv.addEventListener('pointerup',end);cv.addEventListener('pointercancel',end);
 
 function after(){
-  if(mode==='marker'&&marker.length===4){calib();if(H){mode=measMode;toast('Calibrado. Ya puedes medir.');}}
+  if(mode==='marker'&&marker.length===needCal()){calib();if(H){mode=measMode;toast('Calibrado. Ya puedes medir.');}}
   if(mode!=='marker'&&mode!=='poly'&&cur.length===NEED[mode])commit();
   ui();draw();}
 function commit(){if(mode!=='poly'&&mode!=='rect'&&cur.length<2)return;
@@ -248,18 +272,24 @@ document.querySelectorAll('#modes button').forEach(b=>b.onclick=()=>setMode(b.da
 $('#undo').onclick=()=>{if(cur.length)cur.pop();else if(mode==='marker'&&marker.length){marker.pop();calib();}ui();draw();};
 $('#close').onclick=()=>{if(cur.length>=3){commit();ui();draw();}};
 $('#recal').onclick=()=>{marker=[];H=null;mode='marker';cur=[];ui();draw();renderList();};
+document.querySelectorAll('#calSeg button').forEach(b=>b.onclick=()=>{if(calMode===b.dataset.c)return;calMode=b.dataset.c;
+  document.querySelectorAll('#calSeg button').forEach(x=>x.setAttribute('aria-pressed',x===b));
+  $('#rowMarker').hidden=calMode!=='marker';$('#rowTube').hidden=$('#tubeHint').hidden=calMode!=='tube';
+  marker=[];H=null;mode='marker';cur=[];ui();draw();renderList();});
+$('#tOD').addEventListener('input',e=>{const v=parseFloat(e.target.value);if(v>0){OD=v;try{localStorage.setItem('tOD',v)}catch(_){};calib();ui();draw();renderList();}});
 $('#mSize').addEventListener('input',e=>{const v=parseFloat(e.target.value);if(v>0){S=v;try{localStorage.setItem('mSize',v)}catch(_){};calib();ui();draw();renderList();}});
 
 function ui(){
   const n=$('#stepN'),t=$('#stepT');
-  if(!img){n.textContent='1';t.textContent=`Toma una foto con el marcador de ${f1(S)} cm sobre la superficie.`;}
-  else if(mode==='marker'){n.textContent='1';t.textContent=`Toca las 4 esquinas del marcador (${marker.length}/4).`;}
+  if(!img){n.textContent='1';t.textContent=calMode==='marker'?`Toma una foto con el marcador de ${f1(S)} cm sobre la superficie.`:`Toma una foto de frente donde se vea un tubo de Ø ${f1(OD)} mm.`;}
+  else if(mode==='marker'){n.textContent='1';t.textContent=calMode==='marker'?`Toca las 4 esquinas del marcador (${marker.length}/4).`:`Toca los 2 bordes del tubo de referencia, perpendicular a su eje (${marker.length}/2).`;}
   else{n.textContent='2';t.textContent={rect:`Toca las 4 esquinas del parche (${cur.length}/4).`,dist:`Toca los 2 extremos a medir (${cur.length}/2).`,
     diam:`Toca los 2 bordes opuestos del tubo o niple (${cur.length}/2).`,poly:`Toca el contorno y pulsa Cerrar área (${cur.length} puntos).`}[mode];}
   $('#close').hidden=mode!=='poly';$('#close').disabled=cur.length<3;
   const sc=$('#scale');
-  if(H){const q=sortQuad(marker);let side=0;q.forEach((p,i)=>side+=dist(p,q[(i+1)%4]));side/=4;const mmpx=S*10/side;
-    sc.textContent=`Escala ${mmpx.toFixed(2)} mm/px · lado ${Math.round(side)} px`;
+  if(H){let side,mmpx;if(calMode==='marker'){const q=sortQuad(marker);side=0;q.forEach((p,i)=>side+=dist(p,q[(i+1)%4]));side/=4;mmpx=S*10/side;}
+    else{side=dist(marker[0],marker[1]);mmpx=OD/side;}
+    sc.textContent=`Escala ${mmpx.toFixed(2)} mm/px · ref. ${Math.round(side)} px`;
     sc.className='scale '+(mmpx>2.5||side<60?'warn':'ok');if(mmpx>2.5||side<60)sc.textContent+=' · acércate más';}
   else{sc.textContent='Sin calibrar';sc.className='scale';}
   $('#badge').hidden=!isSample;}
@@ -268,8 +298,9 @@ function renderList(valuesOnly){const box=$('#res');
   if(valuesOnly){measures.forEach(m=>{const el=box.querySelector(`[data-id="${m.id}"] .vals`);if(el)el.textContent=fmt(m);});return;}
   if(!measures.length){box.innerHTML='<p class="none">Aún no hay mediciones. Calibra y toca los puntos sobre la foto.</p>';return;}
   box.innerHTML='';measures.forEach(m=>{const d=document.createElement('div');d.className='item'+(m.id===sel?' sel':'');d.dataset.id=m.id;
-    d.innerHTML=`<span class="tag">M${m.n}</span><span class="kind">${NAMES[m.type]}</span><button class="x" aria-label="Borrar M${m.n}">✕</button><span class="vals"></span><input type="text" id="note${m.id}" placeholder="Ubicación / nota (ej. Panel 12, elev. 18 m)">`;
+    d.innerHTML=`<span class="tag">M${m.n}</span><span class="kind">${NAMES[m.type]}</span><button class="x" aria-label="Borrar M${m.n}">✕</button><span class="vals"></span><input type="text" id="note${m.id}" placeholder="Ubicación / nota (ej. Panel 12, elev. 18 m)"><button class="lab">Etiqueta</button>`;
     d.querySelector('.vals').textContent=fmt(m);const inp=d.querySelector('input');inp.value=m.note;inp.oninput=()=>m.note=inp.value;
+    d.querySelector('.lab').onclick=()=>openLabel(m);
     d.querySelector('.x').onclick=()=>{measures=measures.filter(x=>x!==m);measures.forEach((x,i)=>x.n=i+1);renderList();draw();};
     d.onclick=ev=>{if(ev.target.tagName==='INPUT'||ev.target.tagName==='BUTTON')return;sel=m.id;renderList();draw();};
     box.appendChild(d);});}
@@ -300,6 +331,39 @@ $('#csv').onclick=()=>{if(!measures.length)return toast('No hay mediciones para 
 $('#png').onclick=()=>{if(!img)return;const c=document.createElement('canvas');c.width=iw();c.height=ih();
   const u=Math.max(1,iw()/900);const prevSel=sel;sel=null;render(c.getContext('2d'),p=>p,u);sel=prevSel;
   c.toBlob(b=>save(b,`medicion_${stamp()}.jpg`),'image/jpeg',.9);};
+
+/* ---------- etiqueta ---------- */
+let labM=null,fullC=null;
+function fullImg(){if(fullC)return fullC;const c=document.createElement('canvas');c.width=iw();c.height=ih();
+  const ps=sel;sel=null;render(c.getContext('2d'),p=>p,Math.max(1,iw()/900));sel=ps;return fullC=c;}
+function openLabel(m){labM=m;fullC=null;drawLabel();$('#dlg').showModal();}
+function drawLabel(){const m=labM;if(!m)return;const[wm,hm]=$('#lSize').value.split('x').map(Number),k=12,W=wm*k,Hh=hm*k,pad=2*k;
+  const c=$('#lcv');c.width=W;c.height=Hh;c.style.width=Math.min(wm*4,380)+'px';const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,W,Hh);
+  let x0=pad;
+  if($('#lPhoto').checked&&img){const side=Hh-2*pad,xs=m.pts.map(p=>p[0]),ys=m.pts.map(p=>p[1]);
+    const cx=(Math.min(...xs)+Math.max(...xs))/2,cy=(Math.min(...ys)+Math.max(...ys))/2;
+    let sz=Math.max(Math.max(...xs)-Math.min(...xs),Math.max(...ys)-Math.min(...ys))*1.3+60;sz=Math.min(sz,iw(),ih());
+    const sx=Math.max(0,Math.min(iw()-sz,cx-sz/2)),sy=Math.max(0,Math.min(ih()-sz,cy-sz/2));
+    g.drawImage(fullImg(),sx,sy,sz,sz,pad,pad,side,side);g.strokeStyle='#000';g.lineWidth=2;g.strokeRect(pad,pad,side,side);x0=pad*2+side;}
+  const tw=W-x0-pad,ah=Hh-2*pad,r=calc(m)||{};
+  const main={rect:`${f1(r.L)} × ${f1(r.W)} cm`,dist:`${f1(r.v)} cm`,diam:`Ø ${f1(r.v)} cm`,poly:`${f0(r.A)} cm²`}[m.type];
+  const sub={rect:`Área ${f0(r.A)} cm²`,poly:`Perím. ${f1(r.P)} cm`}[m.type]||'';
+  const MONO='"IBM Plex Mono",ui-monospace,monospace',SANS='"IBM Plex Sans",system-ui,sans-serif';
+  g.fillStyle='#000';g.textBaseline='top';g.textAlign='left';
+  const put=(t,y,h,w,f)=>{let fs=Math.round(h);g.font=`${w} ${fs}px ${f}`;while(g.measureText(t).width>tw&&fs>8){fs--;g.font=`${w} ${fs}px ${f}`;}g.fillText(t,x0,y);};
+  put(`M${m.n} · ${NAMES[m.type].toUpperCase()}`,pad,ah*.14,700,MONO);
+  put(main,pad+ah*.2,ah*.28,700,SANS);
+  if(sub)put(sub,pad+ah*.52,ah*.14,500,MONO);
+  if(m.note)put(m.note,pad+ah*.7,ah*.13,500,SANS);
+  g.fillRect(x0,Hh-pad-ah*.15,tw,Math.max(1,k*.2));
+  put(new Date().toLocaleString('es-CL',{dateStyle:'short',timeStyle:'short'}),Hh-pad-ah*.11,ah*.11,400,MONO);}
+$('#lSize').onchange=drawLabel;$('#lPhoto').onchange=drawLabel;
+$('#lPrint').onclick=()=>{const[wm,hm]=$('#lSize').value.split('x');
+  $('#printArea').innerHTML=`<style>@page{size:${wm}mm ${hm}mm;margin:0}</style><img alt="" src="${$('#lcv').toDataURL('image/png')}" style="width:${wm}mm;height:${hm}mm;display:block">`;
+  setTimeout(()=>window.print(),60);};
+$('#lShare').onclick=()=>$('#lcv').toBlob(async b=>{const name=`etiqueta_M${labM.n}_${stamp()}.png`,f=new File([b],name,{type:'image/png'});
+  if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:name});return;}catch(e){if(e.name==='AbortError')return;}}
+  save(b,name);},'image/png');
 
 let tt;function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,2600);}
 

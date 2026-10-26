@@ -1,11 +1,12 @@
-MEDIDOR POR FOTO IQS - publicacion en GitHub Pages
+MEDIDOR POR FOTO - actualizacion del repositorio Dimension-
 
-1. En GitHub crea un repositorio publico nuevo, por ejemplo "medidor-iqs".
-2. Sube TODOS los archivos de esta carpeta a la raiz del repositorio (Add file > Upload files).
-3. Settings > Pages > Source: "Deploy from a branch", rama main, carpeta / (root). Guardar.
-4. Al minuto queda en: https://TU-USUARIO.github.io/medidor-iqs/
-5. Abre ese enlace en Chrome del Android > menu (tres puntos) > "Instalar app" o "Agregar a pantalla principal".
-6. Comparte el mismo enlace con tus colegas.
+1. Descomprime este zip.
+2. En github.com/moliveras-ops/Dimension- pulsa "Add file" > "Upload files".
+3. Arrastra todos los archivos sueltos (reemplazan a los anteriores) y pulsa "Commit changes".
+4. Espera 1-2 minutos. En el telefono abre la app, cierrala por completo y vuelve a abrirla
+   (si no cambia, abre https://moliveras-ops.github.io/Dimension-/ en Chrome y recarga).
 
-Marcador: imprime marcador-10cm.svg al 100 % y comprueba el lado con regla.
-Para actualizar la app: sube el index.html nuevo y cambia "medidor-iqs-v1" por "v2" en sw.js.
+Calibracion: "Marcador" (cuadrado impreso, corrige perspectiva) o "Diametro de tubo"
+(toca los dos bordes del tubo e ingresa su diametro exterior; foto de frente).
+Etiquetas: boton "Etiqueta" en cada medicion. Compartir -> app de la impresora Bluetooth,
+o Imprimir para impresora normal.

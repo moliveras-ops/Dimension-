@@ -460,22 +460,34 @@ let xr=null,arShots=[];
 const AXES=['libre','H','V'];
 const arSt=t=>$('#arStatus').textContent=t;
 const buzz=()=>{try{navigator.vibrate&&navigator.vibrate(25)}catch(_){}};
+let arBusy=false;
+function arHide(){$('#arUI').hidden=true;}
 $('#arBtn').onclick=async()=>{
+  if(arBusy||xr)return;arBusy=true;
   let ok=false;try{ok=!!navigator.xr&&await navigator.xr.isSessionSupported('immersive-ar');}catch(_){}
-  if(!ok)return toast('La medición en vivo necesita la app instalada en Chrome para Android con ARCore.');
-  const ui=$('#arUI');ui.hidden=false;let session;
-  try{session=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['hit-test','local'],optionalFeatures:['dom-overlay','camera-access'],domOverlay:{root:ui}});}
-  catch(e){ui.hidden=true;return toast('No se pudo abrir la cámara RA. Revisa el permiso de cámara y que ARCore esté instalado.');}
-  const gl=document.createElement('canvas').getContext('webgl',{xrCompatible:true,preserveDrawingBuffer:false});
-  session.updateRenderState({baseLayer:new XRWebGLLayer(session,gl)});
-  const local=await session.requestReferenceSpace('local'),viewer=await session.requestReferenceSpace('viewer');
-  const hts=await session.requestHitTestSource({space:viewer});
-  xr={session,gl,local,hts,pts:[],segs:[],hist:[],hit:null,P:null,V:null,cam:null,axis:0,chain:false,wantShot:false,bind:null};
-  arShots=[];arSt('Mueve el teléfono despacio sobre la superficie.');$('#arRead').textContent='';arAxisUI();
-  $('#arChain').setAttribute('aria-pressed','false');
-  session.addEventListener('end',arEnd);
-  session.requestAnimationFrame(arFrame);};
-function arEnd(){if(!xr)return;try{xr.hts.cancel()}catch(_){};xr=null;$('#arUI').hidden=true;
+  if(!ok){arBusy=false;return toast('La medición en vivo necesita la app instalada en Chrome para Android con ARCore.');}
+  const ui=$('#arUI');ui.hidden=false;let session=null;
+  try{
+    session=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['hit-test','local','dom-overlay'],optionalFeatures:['camera-access'],domOverlay:{root:ui}});
+    let ended=false;session.addEventListener('end',()=>{ended=true;arEnd();});
+    const gl=document.createElement('canvas').getContext('webgl',{xrCompatible:true,preserveDrawingBuffer:false});
+    if(gl.makeXRCompatible)await gl.makeXRCompatible();
+    session.updateRenderState({baseLayer:new XRWebGLLayer(session,gl)});
+    const local=await session.requestReferenceSpace('local'),viewer=await session.requestReferenceSpace('viewer');
+    const hts=await session.requestHitTestSource({space:viewer});
+    if(ended)throw new Error('ended');
+    xr={session,gl,local,hts,pts:[],segs:[],hist:[],hit:null,P:null,V:null,cam:null,axis:0,chain:false,wantShot:false,bind:null};
+    arShots=[];arSt('Mueve el teléfono despacio sobre la superficie.');$('#arRead').textContent='';arAxisUI();
+    $('#arChain').setAttribute('aria-pressed','false');
+    session.requestAnimationFrame(arFrame);
+  }catch(e){
+    if(session){try{await session.end()}catch(_){}}
+    xr=null;arHide();
+    if(String(e&&e.message)!=='ended')toast('No se pudo iniciar la RA. Revisa el permiso de cámara y que ARCore esté instalado y actualizado.');
+  }finally{arBusy=false;}};
+$('#arExit').onclick=e=>{e.stopPropagation();if(xr){try{xr.session.end()}catch(_){arEnd();}}else arHide();};
+document.addEventListener('visibilitychange',()=>{if(!xr&&!arBusy)arHide();});
+function arEnd(){arHide();if(!xr)return;try{xr.hts.cancel()}catch(_){};xr=null;
   if(arShots.length){img=arShots[arShots.length-1];isSample=false;marker=[];H=null;cur=[];mode='marker';fit();ui();
     toast(arShots.length>1?`${arShots.length} fotos RA guardadas en Imágenes.`:'Foto RA guardada en Imágenes y abierta en el visor.');}
   renderList();draw();}
@@ -518,13 +530,13 @@ function arAdd(){if(!xr)return;if(!xr.hit)return arSt('Aún no hay superficie ba
     const m={id:++seq,n:measures.length+1,type:'ar',pts:[],v,ax,note:''};measures.push(m);sel=m.id;
     xr.segs.push({a,b,v,ax,n:m.n,id:m.id});xr.pts=xr.chain?[b]:[];buzz();}}
 $('#arAdd').onclick=e=>{e.stopPropagation();arAdd();};
-$('#arUI').addEventListener('click',e=>{if(e.target.closest('button'))return;arAdd();});
+$('#arUI').addEventListener('click',e=>{if(e.target.closest('button'))return;if(!xr&&!arBusy)return arHide();arAdd();});
 $('#arUndo').onclick=e=>{e.stopPropagation();if(!xr)return;
   if(xr.pts.length&&!(xr.chain&&xr.pts.length===1&&xr.segs.length))xr.pts.pop();
   else if(xr.segs.length){const g=xr.segs.pop();measures=measures.filter(m=>m.id!==g.id);measures.forEach((m,i)=>m.n=i+1);xr.pts=xr.chain&&xr.segs.length?[xr.segs[xr.segs.length-1].b]:[];}};
 function arAxisUI(){const b=$('#arAxis');b.textContent=`Eje: ${['libre','horizontal','vertical'][xr.axis]}`;b.classList.toggle('on',xr.axis>0);}
-$('#arAxis').onclick=e=>{e.stopPropagation();xr.axis=(xr.axis+1)%3;arAxisUI();};
-$('#arChain').onclick=e=>{e.stopPropagation();xr.chain=!xr.chain;e.currentTarget.setAttribute('aria-pressed',xr.chain);if(!xr.chain&&xr.pts.length===1&&xr.segs.length)xr.pts=[];};
+$('#arAxis').onclick=e=>{e.stopPropagation();if(!xr)return;xr.axis=(xr.axis+1)%3;arAxisUI();};
+$('#arChain').onclick=e=>{e.stopPropagation();if(!xr)return;xr.chain=!xr.chain;e.currentTarget.setAttribute('aria-pressed',xr.chain);if(!xr.chain&&xr.pts.length===1&&xr.segs.length)xr.pts=[];};
 $('#arShot').onclick=e=>{e.stopPropagation();if(xr)xr.wantShot=true;};
 function arCapture(view){try{
   if(!view.camera||typeof XRWebGLBinding==='undefined')throw new Error('nocam');

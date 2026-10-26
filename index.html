@@ -79,6 +79,15 @@ dialog::backdrop{background:rgba(5,9,13,.6)}
 .dlg{display:grid;gap:12px;padding:14px}
 .lprev{background:var(--chip);padding:12px;display:grid;place-items:center;border-radius:5px}
 #lcv{max-width:100%;height:auto;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+#arUI{position:fixed;inset:0;z-index:30;color:#fff;font-family:var(--f-body);background:transparent}
+#arSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.arTop,.arBar{position:absolute;left:0;right:0;display:flex;gap:8px;align-items:center;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.arTop{top:0;padding-block:calc(12px + env(safe-area-inset-top,0px)) 12px;justify-content:space-between;background:linear-gradient(rgba(0,0,0,.65),transparent)}
+.arTop span{font-weight:500;text-shadow:0 1px 3px #000;min-width:0}
+.arBar{bottom:0;padding-block:16px calc(18px + env(safe-area-inset-bottom,0px));justify-content:center;background:linear-gradient(transparent,rgba(0,0,0,.7))}
+.arBar button,.arTop button{min-height:52px;padding:10px 18px;font-size:16px;background:rgba(20,32,43,.85);color:#fff;border-color:rgba(255,255,255,.3)}
+.arBar #arAdd{background:#f5c518;color:#1d1600;border-color:transparent;font-size:18px;min-width:120px}
+.arRead{position:absolute;left:0;right:0;bottom:calc(100px + env(safe-area-inset-bottom,0px));text-align:center;font-family:var(--f-mono);font-size:40px;font-weight:500;text-shadow:0 2px 6px #000;font-variant-numeric:tabular-nums}
 #printArea{display:none}
 @media print{body>*:not(#printArea){display:none!important}#printArea{display:block}:root{padding:0!important}}
 .x{min-height:32px;padding:4px 8px;background:transparent}
@@ -99,6 +108,7 @@ dialog::backdrop{background:rgba(5,9,13,.6)}
       <label class="btn primary" for="fCam">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Tomar foto
         <input class="hidden-input" id="fCam" type="file" accept="image/*" capture="environment"></label>
+      <button id="arBtn"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V4h3M21 7V4h-3M3 17v3h3M21 17v3h-3"/><path d="M7 15 17 9"/><circle cx="7" cy="15" r="1.5"/><circle cx="17" cy="9" r="1.5"/></svg>En vivo (RA)</button>
       <label class="btn" for="fGal">Galería<input class="hidden-input" id="fGal" type="file" accept="image/*"></label>
     </div>
   </header>
@@ -160,6 +170,12 @@ dialog::backdrop{background:rgba(5,9,13,.6)}
   </form>
 </dialog>
 <div id="printArea"></div>
+<div id="arUI" hidden>
+  <svg id="arSvg"></svg>
+  <div class="arTop"><span id="arStatus">Mueve el teléfono despacio sobre la superficie.</span><button id="arExit">Salir</button></div>
+  <div class="arRead" id="arRead"></div>
+  <div class="arBar"><button id="arUndo">Deshacer</button><button id="arAdd">+ Punto</button><button id="arSave" disabled>Guardar</button></div>
+</div>
 
 <script>
 (()=>{
@@ -167,7 +183,7 @@ const $=s=>document.querySelector(s);
 const cv=$('#cv'),ctx=cv.getContext('2d'),loupe=$('#loupe'),lctx=loupe.getContext('2d'),stage=$('#stage');
 const C_MARK='#22d3ee',C_MEAS='#ffd400',C_SEL='#ff6b2c';
 const NEED={marker:4,dist:2,diam:2,rect:4};
-const NAMES={dist:'Largo',diam:'Diámetro',rect:'Parche',poly:'Área libre'};
+const NAMES={ar:'En vivo (RA)',dist:'Largo',diam:'Diámetro',rect:'Parche',poly:'Área libre'};
 let calMode='marker',OD=63.5;
 let img=null,isSample=false,S=10,marker=[],H=null,mode='marker',measMode='rect',cur=[],measures=[],seq=0,sel=null;
 let view={k:1,ox:0,oy:0},dpr=1,drag=null;
@@ -195,13 +211,14 @@ function calib(){
   if(marker.length<needCal()){H=null;return;}
   if(calMode==='tube'){const px=dist(marker[0],marker[1]);if(px<1){H=null;return;}const s=OD/10/px;H=[s,0,0,0,s,0,0,0,1];return;}
   const q=sortQuad(marker);H=homog(q,[[0,0],[S,0],[S,S],[0,S]]);}
-function calc(m){if(!H)return null;const q=m.pts.map(p=>apply(H,p));
+function calc(m){if(m.type==='ar')return{v:m.v};if(!H)return null;const q=m.pts.map(p=>apply(H,p));
   if(m.type==='dist'||m.type==='diam')return{v:dist(q[0],q[1])};
   if(m.type==='rect'){const a=(dist(q[0],q[1])+dist(q[2],q[3]))/2,b=(dist(q[1],q[2])+dist(q[3],q[0]))/2;
     return{L:Math.max(a,b),W:Math.min(a,b),A:area(q)};}
   let per=0;q.forEach((p,i)=>per+=dist(p,q[(i+1)%q.length]));return{A:area(q),P:per};}
 const f1=x=>x.toFixed(1),f0=x=>Math.round(x).toLocaleString('es-CL');
 function fmt(m,short){const r=calc(m);if(!r)return'—';
+  if(m.type==='ar')return`${f1(r.v)} cm · RA`;
   if(m.type==='dist')return`${f1(r.v)} cm`;
   if(m.type==='diam')return`Ø ${f1(r.v)} cm`;
   if(m.type==='rect')return short?`${f1(r.L)} × ${f1(r.W)} cm`:`${f1(r.L)} × ${f1(r.W)} cm · ${f0(r.A)} cm²`;
@@ -225,7 +242,7 @@ function render(g,T,u){ // T: imagen->lienzo, u: escala de grosor
     g.fillStyle='rgba(8,12,16,.82)';g.fillRect(s[0]-w/2,s[1]-h/2,w,h);g.fillStyle=col;g.textAlign='center';g.textBaseline='middle';g.fillText(txt,s[0],s[1]+1*u);};
   if(marker.length){const quad=calMode==='marker'&&marker.length===4,q=quad?sortQuad(marker):marker;path(q,quad);stroke(C_MARK,2,false);marker.forEach(p=>dot(p,C_MARK));
     if(H&&q.length>=2)label([(q[0][0]+q[1][0])/2,(q[0][1]+q[1][1])/2],calMode==='marker'?`REF ${f1(S)} cm`:`Ø REF ${f1(OD)} mm`,C_MARK);}
-  measures.forEach(m=>{const col=m.id===sel?C_SEL:C_MEAS;path(m.pts,m.type==='rect'||m.type==='poly');stroke(col,2.5,false);m.pts.forEach(p=>dot(p,col));
+  measures.forEach(m=>{if(!m.pts.length)return;const col=m.id===sel?C_SEL:C_MEAS;path(m.pts,m.type==='rect'||m.type==='poly');stroke(col,2.5,false);m.pts.forEach(p=>dot(p,col));
     const c=m.type==='dist'||m.type==='diam'?[(m.pts[0][0]+m.pts[1][0])/2,(m.pts[0][1]+m.pts[1][1])/2]:[m.pts.reduce((s,p)=>s+p[0],0)/m.pts.length,m.pts.reduce((s,p)=>s+p[1],0)/m.pts.length];
     label(c,`M${m.n} ${fmt(m,true)}`,col);});
   if(cur.length){path(cur,false);stroke(C_MEAS,2,true);cur.forEach(p=>dot(p,C_MEAS));}
@@ -315,7 +332,7 @@ $('#fGal').onchange=e=>{load(e.target.files[0]);e.target.value='';};
 /* ---------- exportar ---------- */
 function rows(){return measures.map(m=>{const r=calc(m)||{};
   return[`M${m.n}`,NAMES[m.type],
-    m.type==='rect'?f1(r.L):m.type==='dist'||m.type==='diam'?f1(r.v):'',
+    m.type==='rect'?f1(r.L):m.type==='dist'||m.type==='diam'||m.type==='ar'?f1(r.v):'',
     m.type==='rect'?f1(r.W):'',
     m.type==='rect'||m.type==='poly'?f0(r.A).replace(/\./g,''):'',m.note];});}
 const HEAD=['ID','Tipo','Largo/Ø (cm)','Ancho (cm)','Área (cm²)','Nota'];
@@ -340,13 +357,13 @@ function openLabel(m){labM=m;fullC=null;drawLabel();$('#dlg').showModal();}
 function drawLabel(){const m=labM;if(!m)return;const[wm,hm]=$('#lSize').value.split('x').map(Number),k=12,W=wm*k,Hh=hm*k,pad=2*k;
   const c=$('#lcv');c.width=W;c.height=Hh;c.style.width=Math.min(wm*4,380)+'px';const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,W,Hh);
   let x0=pad;
-  if($('#lPhoto').checked&&img){const side=Hh-2*pad,xs=m.pts.map(p=>p[0]),ys=m.pts.map(p=>p[1]);
+  if($('#lPhoto').checked&&img&&m.pts.length){const side=Hh-2*pad,xs=m.pts.map(p=>p[0]),ys=m.pts.map(p=>p[1]);
     const cx=(Math.min(...xs)+Math.max(...xs))/2,cy=(Math.min(...ys)+Math.max(...ys))/2;
     let sz=Math.max(Math.max(...xs)-Math.min(...xs),Math.max(...ys)-Math.min(...ys))*1.3+60;sz=Math.min(sz,iw(),ih());
     const sx=Math.max(0,Math.min(iw()-sz,cx-sz/2)),sy=Math.max(0,Math.min(ih()-sz,cy-sz/2));
     g.drawImage(fullImg(),sx,sy,sz,sz,pad,pad,side,side);g.strokeStyle='#000';g.lineWidth=2;g.strokeRect(pad,pad,side,side);x0=pad*2+side;}
   const tw=W-x0-pad,ah=Hh-2*pad,r=calc(m)||{};
-  const main={rect:`${f1(r.L)} × ${f1(r.W)} cm`,dist:`${f1(r.v)} cm`,diam:`Ø ${f1(r.v)} cm`,poly:`${f0(r.A)} cm²`}[m.type];
+  const main={ar:`${f1(r.v)} cm`,rect:`${f1(r.L)} × ${f1(r.W)} cm`,dist:`${f1(r.v)} cm`,diam:`Ø ${f1(r.v)} cm`,poly:`${f0(r.A)} cm²`}[m.type];
   const sub={rect:`Área ${f0(r.A)} cm²`,poly:`Perím. ${f1(r.P)} cm`}[m.type]||'';
   const MONO='"IBM Plex Mono",ui-monospace,monospace',SANS='"IBM Plex Sans",system-ui,sans-serif';
   g.fillStyle='#000';g.textBaseline='top';g.textAlign='left';
@@ -366,6 +383,56 @@ $('#lShare').onclick=()=>$('#lcv').toBlob(async b=>{const name=`etiqueta_M${labM
   save(b,name);},'image/png');
 
 let tt;function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,2600);}
+
+/* ---------- realidad aumentada en vivo ---------- */
+let xr=null;
+const arSt=t=>$('#arStatus').textContent=t;
+$('#arBtn').onclick=async()=>{
+  let ok=false;try{ok=!!navigator.xr&&await navigator.xr.isSessionSupported('immersive-ar');}catch(_){}
+  if(!ok)return toast('La medición en vivo necesita la app instalada en Chrome para Android con ARCore.');
+  const ui=$('#arUI');ui.hidden=false;let session;
+  try{session=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['hit-test','local'],optionalFeatures:['dom-overlay'],domOverlay:{root:ui}});}
+  catch(e){ui.hidden=true;return toast('No se pudo abrir la cámara RA. Revisa el permiso de cámara y que ARCore esté instalado.');}
+  const gl=document.createElement('canvas').getContext('webgl',{xrCompatible:true});
+  session.updateRenderState({baseLayer:new XRWebGLLayer(session,gl)});
+  const local=await session.requestReferenceSpace('local'),viewer=await session.requestReferenceSpace('viewer');
+  const hts=await session.requestHitTestSource({space:viewer});
+  xr={session,gl,local,hts,pts:[],hist:[],hit:null,P:null,V:null,cam:null};
+  arSt('Mueve el teléfono despacio sobre la superficie.');$('#arRead').textContent='';$('#arSave').disabled=true;
+  session.addEventListener('end',()=>{try{hts.cancel()}catch(_){};xr=null;ui.hidden=true;renderList();});
+  session.requestAnimationFrame(arFrame);};
+function arFrame(t,f){if(!xr)return;const s=xr.session;s.requestAnimationFrame(arFrame);
+  const gl=xr.gl;gl.bindFramebuffer(gl.FRAMEBUFFER,s.renderState.baseLayer.framebuffer);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
+  const pose=f.getViewerPose(xr.local);if(!pose)return;const v=pose.views[0];
+  xr.P=v.projectionMatrix;xr.V=v.transform.inverse.matrix;const c=pose.transform.position;xr.cam=[c.x,c.y,c.z];
+  const r=f.getHitTestResults(xr.hts);
+  if(r.length){const p=r[0].getPose(xr.local).transform.position;xr.hit=[p.x,p.y,p.z];xr.hist.push(xr.hit);if(xr.hist.length>20)xr.hist.shift();}
+  else{xr.hit=null;xr.hist=[];}
+  arDraw();}
+const d3=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
+function proj(p){const P=xr.P,V=xr.V,[x,y,z]=p;
+  const vx=V[0]*x+V[4]*y+V[8]*z+V[12],vy=V[1]*x+V[5]*y+V[9]*z+V[13],vz=V[2]*x+V[6]*y+V[10]*z+V[14];
+  const cx=P[0]*vx+P[4]*vy+P[8]*vz+P[12],cy=P[1]*vx+P[5]*vy+P[9]*vz+P[13],cw=P[3]*vx+P[7]*vy+P[11]*vz+P[15];
+  if(cw<=0.01)return null;return[(cx/cw+1)/2*innerWidth,(1-cy/cw)/2*innerHeight];}
+function stable(){const h=xr.hit,near=xr.hist.filter(q=>d3(q,h)<0.015);
+  return near.length?[0,1,2].map(i=>near.reduce((s,q)=>s+q[i],0)/near.length):h;}
+function arDraw(){const W=innerWidth,Hh=innerHeight,cx=W/2,cy=Hh/2,col=xr.hit?'#3cf08a':'#9aa4ad';let o='';
+  const seg=(a,b,dash)=>{const A=proj(a),B=proj(b);if(!A||!B)return;o+=`<line x1="${A[0]}" y1="${A[1]}" x2="${B[0]}" y2="${B[1]}" stroke="#000" stroke-opacity=".5" stroke-width="7"/><line x1="${A[0]}" y1="${A[1]}" x2="${B[0]}" y2="${B[1]}" stroke="#ffd400" stroke-width="3" ${dash?'stroke-dasharray="10 8"':''}/>`;};
+  if(xr.pts.length===2)seg(xr.pts[0],xr.pts[1],false);else if(xr.pts.length===1&&xr.hit)seg(xr.pts[0],xr.hit,true);
+  xr.pts.forEach(p=>{const s=proj(p);if(s)o+=`<circle cx="${s[0]}" cy="${s[1]}" r="9" fill="#ffd400" stroke="#000" stroke-width="2"/>`;});
+  o+=`<circle cx="${cx}" cy="${cy}" r="22" fill="none" stroke="${col}" stroke-width="3"/><circle cx="${cx}" cy="${cy}" r="3" fill="${col}"/>`;
+  $('#arSvg').innerHTML=o;
+  let txt='';if(xr.pts.length===2)txt=`${f1(d3(xr.pts[0],xr.pts[1])*100)} cm`;else if(xr.pts.length===1&&xr.hit)txt=`${f1(d3(xr.pts[0],xr.hit)*100)} cm`;
+  $('#arRead').textContent=txt;
+  if(!xr.hit)arSt('Buscando superficie… mueve el teléfono despacio.');
+  else{const dd=d3(xr.cam,xr.hit);arSt(`Superficie a ${dd.toFixed(2)} m`+(dd>1.5?' · acércate para más precisión':''));}}
+$('#arAdd').onclick=()=>{if(!xr)return;if(!xr.hit)return arSt('Aún no hay superficie bajo el círculo.');
+  if(xr.pts.length===2){arSave();}xr.pts.push(stable());$('#arSave').disabled=xr.pts.length<2;};
+function arSave(){if(!xr||xr.pts.length<2)return;const v=d3(xr.pts[0],xr.pts[1])*100;
+  measures.push({id:++seq,n:measures.length+1,type:'ar',pts:[],v,note:''});sel=seq;xr.pts=[];$('#arSave').disabled=true;arSt(`Guardada M${measures.length}: ${f1(v)} cm`);$('#arRead').textContent='';}
+$('#arSave').onclick=arSave;
+$('#arUndo').onclick=()=>{if(xr&&xr.pts.length){xr.pts.pop();$('#arSave').disabled=xr.pts.length<2;}};
+$('#arExit').onclick=()=>{if(xr)xr.session.end();};
 
 /* ---------- instalación ---------- */
 let deferred=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;$('#install').hidden=false;});

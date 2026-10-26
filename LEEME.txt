@@ -10,3 +10,6 @@ Calibracion: "Marcador" (cuadrado impreso, corrige perspectiva) o "Diametro de t
 (toca los dos bordes del tubo e ingresa su diametro exterior; foto de frente).
 Etiquetas: boton "Etiqueta" en cada medicion. Compartir -> app de la impresora Bluetooth,
 o Imprimir para impresora normal.
+
+Medicion en vivo (RA): boton "En vivo (RA)". Apunta el circulo a la superficie, toca "+ Punto" en cada extremo y "Guardar".
+Requiere la app instalada en Chrome para Android con ARCore.

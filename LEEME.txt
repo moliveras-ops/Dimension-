@@ -1,0 +1,11 @@
+MEDIDOR POR FOTO IQS - publicacion en GitHub Pages
+
+1. En GitHub crea un repositorio publico nuevo, por ejemplo "medidor-iqs".
+2. Sube TODOS los archivos de esta carpeta a la raiz del repositorio (Add file > Upload files).
+3. Settings > Pages > Source: "Deploy from a branch", rama main, carpeta / (root). Guardar.
+4. Al minuto queda en: https://TU-USUARIO.github.io/medidor-iqs/
+5. Abre ese enlace en Chrome del Android > menu (tres puntos) > "Instalar app" o "Agregar a pantalla principal".
+6. Comparte el mismo enlace con tus colegas.
+
+Marcador: imprime marcador-10cm.svg al 100 % y comprueba el lado con regla.
+Para actualizar la app: sube el index.html nuevo y cambia "medidor-iqs-v1" por "v2" en sw.js.

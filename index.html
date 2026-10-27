@@ -151,7 +151,7 @@ details[open] #calSum{display:none}
   .card{padding:10px}
   .modes button{font-size:12px;min-height:54px}
   .utAct{grid-template-columns:1fr}
-  .toast{bottom:calc(128px + env(safe-area-inset-bottom,0px))}
+  #toast{bottom:calc(128px + env(safe-area-inset-bottom,0px))}
 }
 .badge{top:64px;bottom:auto}
 .quick{position:absolute;left:66px;right:0;bottom:10px;z-index:2;display:flex;gap:6px;overflow-x:auto;padding-right:10px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
@@ -272,6 +272,7 @@ details[open] #calSum{display:none}
   </form>
 </dialog>
 <div id="printArea"></div>
+<input class="hidden-input" id="uCam3" type="file" accept="image/*" capture="environment" aria-hidden="true" tabindex="-1">
 <dialog id="utD">
   <div class="dlg">
     <div class="row" style="justify-content:space-between"><span class="lbl" id="utTitle">Lectura</span><button class="x" id="utClose" aria-label="Cerrar">✕</button></div>
@@ -383,7 +384,7 @@ function render(g,T,u){ // T: imagen->lienzo, u: escala de grosor
   if(marker.length&&app==='medir'){const quad=calMode==='marker'&&marker.length===4,q=quad?sortQuad(marker):marker;path(q,quad);stroke(C_MARK,2,false);marker.forEach(p=>dot(p,C_MARK));
     if(H&&q.length>=2)label([(q[0][0]+q[1][0])/2,(q[0][1]+q[1][1])/2],calMode==='marker'?`REF ${f1(S)} cm`:`Ø REF ${f1(OD)} mm`,C_MARK);}
   measures.forEach(m=>{if(!m.pts.length||!vis(m))return;
-    if(m.type==='ut'){const col=low(m)?C_LOW:m.e==null?'#c7d0d8':C_UT;dot(m.pts[0],col);const s0=T(m.pts[0]);labelS([s0[0],s0[1]-30*u],`${tagOf(m)} ${m.e==null?'?':m.e.toFixed(2)+' mm'}`,col,18);return;}
+    if(m.type==='ut'){const col=low(m)?C_LOW:m.e==null?'#c7d0d8':C_UT;dot(m.pts[0],col);const s0=T(m.pts[0]);labelS([s0[0],s0[1]-30*u],`${tagOf(m)} ${m.e==null?'· toca para leer':m.e.toFixed(2)+' mm'}`,col,18);return;}
     const col=m.id===sel?C_SEL:C_MEAS;path(m.pts,m.type==='rect'||m.type==='poly');stroke(col,2.5,false);m.pts.forEach(p=>dot(p,col));
     const c=m.type==='dist'||m.type==='diam'?[(m.pts[0][0]+m.pts[1][0])/2,(m.pts[0][1]+m.pts[1][1])/2]:[m.pts.reduce((s,p)=>s+p[0],0)/m.pts.length,m.pts.reduce((s,p)=>s+p[1],0)/m.pts.length];
     label(c,`${tagOf(m)} ${fmt(m,true)}`,col);});
@@ -411,10 +412,12 @@ cv.addEventListener('pointerdown',e=>{if(!img)return;e.preventDefault();cv.setPo
   if(h){const p=h.arr[h.i],sp=toScr(p);drag={...h,off:[sp[0]-s[0],sp[1]-s[1]]};if(h.owner!=='marker'&&h.owner!=='cur'){sel=h.owner.id;renderList();}}
   else{if(!canAdd())return;const t=target();t.push(toImg(s));drag={arr:t,i:t.length-1,owner:mode==='marker'?'marker':'cur',off:[0,0]};}
   if(drag.owner==='marker')calib();showLoupe(s,drag.arr[drag.i]);draw();});
-cv.addEventListener('pointermove',e=>{if(!drag)return;const s=evPt(e);const p=toImg([s[0]+drag.off[0],s[1]+drag.off[1]]);
+cv.addEventListener('pointermove',e=>{if(!drag)return;drag.moved=true;const s=evPt(e);const p=toImg([s[0]+drag.off[0],s[1]+drag.off[1]]);
   p[0]=Math.max(0,Math.min(iw(),p[0]));p[1]=Math.max(0,Math.min(ih(),p[1]));drag.arr[drag.i]=p;
   if(drag.owner==='marker')calib();showLoupe(s,p);draw();if(drag.owner!=='cur')renderList(true);});
-const end=()=>{if(!drag)return;drag=null;loupe.hidden=true;after();};
+const end=()=>{if(!drag)return;const d=drag;drag=null;loupe.hidden=true;
+  if(!d.moved&&d.owner&&d.owner.type==='ut'&&app==='ut'){if(d.owner.e==null)readFor(d.owner);else openUT(d.owner);ui();draw();return;}
+  after();};
 cv.addEventListener('pointerup',end);cv.addEventListener('pointercancel',end);
 
 function after(){
@@ -422,7 +425,7 @@ function after(){
   if(lastAuto&&mode==='ut'&&cur.length&&measures.includes(lastAuto)){lastAuto.pts=[cur[0]];lastAuto.onGauge=false;sel=lastAuto.id;toast(`${tagOf(lastAuto)} ubicado.`);lastAuto=null;cur=[];renderList();ui();draw();return;}
   const unloc=mode==='ut'&&cur.length?measures.find(x=>x.type==='ut'&&!x.pts.length):null;
   if(unloc){unloc.pts=[cur[0]];cur=[];sel=unloc.id;renderList();toast(`${tagOf(unloc)} ubicado.`);}
-  else if(mode==='ut'&&cur.length){const m={id:++seq,n:nextN('ut'),type:'ut',pts:[cur[0]],e:null,note:'',ev:null};cur=[];measures.push(m);sel=m.id;renderList();openUT(m);}
+  else if(mode==='ut'&&cur.length){const m={id:++seq,n:nextN('ut'),type:'ut',pts:[cur[0]],e:null,note:'',ev:null};cur=[];measures.push(m);sel=m.id;renderList();readFor(m);}
   else if(mode!=='marker'&&mode!=='poly'&&mode!=='ut'&&cur.length===NEED[mode])commit();
   ui();draw();}
 function commit(){if(mode!=='poly'&&mode!=='rect'&&cur.length<2)return;
@@ -572,9 +575,11 @@ const uMsg=t=>$('#uMsg').textContent=t;
 function openUT(m,silent){utM=m;utImg=null;$('#utTitle').textContent=`Lectura ${tagOf(m)}`;$('#uVal').value=m.e!=null?m.e.toFixed(2):'';uMsg('');
   $('#utBox').hidden=true;$('#utCrop').hidden=true;$('#utHint').textContent='Saca la foto de frente a la pantalla del medidor, sin reflejos.';
   if(!silent&&!$('#utD').open)$('#utD').showModal();}
+function readFor(m){openUT(m,true);autoSave=true;getW().catch(()=>{});$('#uCam3').click();}
 function showUTD(){if(!$('#utD').open)$('#utD').showModal();$('#utBox').hidden=!utImg;if(utImg)requestAnimationFrame(utDraw);}
 $('#uCam2').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
   const m={id:++seq,n:nextN('ut'),type:'ut',pts:[],e:null,note:'',ev:null};autoSave=true;openUT(m,true);busy(true);utLoad(f);};
+$('#uCam3').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f){autoSave=false;return;}busy(true);utLoad(f);};
 $('#fCam2').onchange=e=>{load(e.target.files[0]);e.target.value='';};
 $('#utClose').onclick=()=>{autoSave=false;$('#utD').close();};
 $('#uOk').onclick=()=>{const v=parseFloat(String($('#uVal').value).replace(',','.'));if(!(v>0))return uMsg('Ingresa un valor válido.');

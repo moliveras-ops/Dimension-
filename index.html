@@ -36,6 +36,7 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;fl
 .brand h1{font-family:var(--f-display);font-weight:700;font-size:28px;letter-spacing:.02em;margin:0;text-transform:uppercase;line-height:1}
 .brand h1 b{color:var(--accent-ink);background:var(--accent);padding:0 6px;margin-left:6px;border-radius:2px}
 .brand span{color:var(--muted);font-size:13px}
+.ver{font-style:normal;font-family:var(--f-mono);font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:10px;padding:1px 7px;white-space:nowrap;align-self:center}
 .main{display:grid;gap:14px;grid-template-columns:minmax(0,1fr) 360px;align-items:start}
 @media (max-width:860px){.main{grid-template-columns:minmax(0,1fr)}}
 .stage{position:relative;background:var(--stage);border-radius:6px;overflow:hidden;height:min(68svh,640px);min-height:320px;touch-action:none;user-select:none;-webkit-user-select:none}
@@ -199,7 +200,7 @@ header .row svg{width:22px;height:22px}
 <body>
 <div class="wrap">
   <header>
-    <div class="brand"><h1>Medidor<b>Foto</b></h1><span>Dimensionamiento por foto con marcador</span></div>
+    <div class="brand"><h1>Medidor<b>Foto</b></h1><em class="ver" id="ver"></em><span>Dimensionamiento por foto con marcador</span></div>
     <div class="row">
       <button id="install" class="primary" hidden>Instalar app</button>
       <label class="btn primary" id="hdrCam" for="fCam">
@@ -336,6 +337,9 @@ header .row svg{width:22px;height:22px}
 (()=>{
 const $=s=>document.querySelector(s);
 const cv=$('#cv'),ctx=cv.getContext('2d'),loupe=$('#loupe'),lctx=loupe.getContext('2d'),stage=$('#stage');
+const APP_VER=29;
+$('#ver').textContent='v'+APP_VER;$('#ver').title='Versión '+APP_VER;
+try{const pv=+localStorage.getItem('ver');if(pv&&pv!==APP_VER)setTimeout(()=>toast('App actualizada a la versión '+APP_VER),600);localStorage.setItem('ver',APP_VER);}catch(_){}
 const C_MARK='#22d3ee',C_MEAS='#ffd400',C_SEL='#ff6b2c',C_UT='#7dff9b',C_LOW='#ff4d4d';
 const f2=x=>x.toFixed(2);let tMin=0;
 const low=m=>m.type==='ut'&&m.e!=null&&tMin>0&&m.e<tMin;

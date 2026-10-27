@@ -221,11 +221,11 @@ details[open] #calSum{display:none}
       <div class="card" id="cardUT" hidden>
         <span class="lbl">Registro de espesores</span>
         <div class="utAct">
-          <label class="btn primary big" for="uCam2"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Leer espesor del medidor
+          <label class="btn primary big" id="utZoneBtn" for="fCam2"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg><span id="utZoneTxt">1 · Foto de la zona a inspeccionar</span><input class="hidden-input" id="fCam2" type="file" accept="image/*" capture="environment"></label>
+          <label class="btn" id="utGaugeBtn" for="uCam2" hidden>Leer espesor del medidor
             <input class="hidden-input" id="uCam2" type="file" accept="image/*" capture="environment"></label>
-          <label class="btn" for="fCam2">Foto del panel<input class="hidden-input" id="fCam2" type="file" accept="image/*" capture="environment"></label>
         </div>
-        <p class="hint" id="utHelp">Fotografía la pantalla del medidor: la app lee el espesor y luego tocas en la foto del panel dónde se midió. También puedes tocar primero el punto.</p>
+        <p class="hint" id="utHelp">1) Fotografía la zona a inspeccionar. 2) Toca en la foto los puntos de medición. 3) Toca cada punto para fotografiar el medidor y registrar su espesor.</p>
         <div class="row" id="rowMin"><label for="tMin">Espesor mínimo requerido</label><input id="tMin" type="number" step="0.01" min="0" placeholder="—"> <span>mm</span></div>
         <div class="row" id="rowUndoUT"><button id="undoUT">Quitar último punto</button></div>
       </div>
@@ -425,7 +425,8 @@ function after(){
   if(lastAuto&&mode==='ut'&&cur.length&&measures.includes(lastAuto)){lastAuto.pts=[cur[0]];lastAuto.onGauge=false;sel=lastAuto.id;toast(`${tagOf(lastAuto)} ubicado.`);lastAuto=null;cur=[];renderList();ui();draw();return;}
   const unloc=mode==='ut'&&cur.length?measures.find(x=>x.type==='ut'&&!x.pts.length):null;
   if(unloc){unloc.pts=[cur[0]];cur=[];sel=unloc.id;renderList();toast(`${tagOf(unloc)} ubicado.`);}
-  else if(mode==='ut'&&cur.length){const m={id:++seq,n:nextN('ut'),type:'ut',pts:[cur[0]],e:null,note:'',ev:null};cur=[];measures.push(m);sel=m.id;renderList();readFor(m);}
+  else if(mode==='ut'&&cur.length&&!hasZone()){cur=[];toast('Primero toma la foto de la zona a inspeccionar.');}
+  else if(mode==='ut'&&cur.length){const m={id:++seq,n:nextN('ut'),type:'ut',pts:[cur[0]],e:null,note:'',ev:null};cur=[];measures.push(m);sel=m.id;renderList();toast(`${tagOf(m)} agregado.`);}
   else if(mode!=='marker'&&mode!=='poly'&&mode!=='ut'&&cur.length===NEED[mode])commit();
   ui();draw();}
 function commit(){if(mode!=='poly'&&mode!=='rect'&&cur.length<2)return;
@@ -435,15 +436,18 @@ function commit(){if(mode!=='poly'&&mode!=='rect'&&cur.length<2)return;
 function setMode(m){measMode=m;cur=[];mode=m==='ut'?'ut':H?m:'marker';
   document.querySelectorAll('#modes button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===m));ui();draw();}
 document.querySelectorAll('#modes button').forEach(b=>b.onclick=()=>setMode(b.dataset.m));
-function setApp(a,quiet){app=a;if(a==='ut')setTimeout(()=>getW().catch(()=>{}),400);$('#camFab').htmlFor=a==='ut'?'uCam2':'fCam';$('#camFab').setAttribute('aria-label',a==='ut'?'Leer espesor del medidor':'Tomar foto');try{localStorage.setItem('app',a)}catch(_){}
+function setApp(a,quiet){app=a;if(a==='ut')setTimeout(()=>getW().catch(()=>{}),400);try{localStorage.setItem('app',a)}catch(_){}
   document.querySelectorAll('#appTabs button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.app===a));
   const ut=a==='ut';$('#cardCal').hidden=ut;$('#cardModes').hidden=ut;$('#cardUT').hidden=!ut;$('#arBtn').hidden=ut;
   $('#resTitle').textContent=ut?'Lecturas de espesor':'Mediciones';
+  $('#empty p').textContent=ut?'Toma la foto de la zona a inspeccionar para empezar.':'Toma una foto con el marcador o con un tubo de diámetro conocido a la vista.';
   $('#footHint').textContent=ut?'Fotografía la pantalla del medidor de frente y sin reflejos. Revisa siempre el valor leído antes de guardarlo.':'Calibra en el mismo plano que lo que mides: marcador apoyado sobre la superficie, o un tubo de la misma pared. Mantén presionado para afinar el punto con la lupa.';
   if(ut){cur=[];mode='ut';}else{if(measMode==='ut')measMode='rect';setMode(measMode);}
   const sv=visList().find(m=>m.id===sel);if(!sv)sel=null;ui();renderList();draw();}
 document.querySelectorAll('#appTabs button').forEach(b=>b.onclick=()=>setApp(b.dataset.app));
-document.addEventListener('click',e=>{const l=e.target.closest('label');if(l&&l.htmlFor==='uCam2')getW().catch(()=>{});},true);
+document.addEventListener('click',e=>{const l=e.target.closest('label');if(l&&l.htmlFor==='uCam2'){if(!hasZone()){e.preventDefault();toast('Primero toma la foto de la zona a inspeccionar.');$('#fCam2').click();return;}getW().catch(()=>{});}},true);
+const hasZone=()=>!!img&&!isSample;
+const pendUT=()=>measures.filter(x=>x.type==='ut'&&x.pts.length&&x.e==null);
 $('#fabUndo').onclick=()=>{(app==='ut'?$('#undoUT'):$('#undo')).click();};
 $('#undoUT').onclick=()=>{const L=visList();if(!L.length)return;const m=L[L.length-1];measures=measures.filter(x=>x!==m);renum();renderList();draw();ui();};
 $('#undo').onclick=()=>{if(cur.length)cur.pop();else if(mode==='marker'&&marker.length){marker.pop();calib();}ui();draw();};
@@ -462,20 +466,25 @@ function renderQuick(){const q=$('#quick');const B=[];
   if(app==='medir'){[['rect','Parche'],['dist','Largo'],['diam','Ø Diámetro'],['poly','Área']].forEach(([m,t])=>B.push(`<button data-q="m:${m}" aria-pressed="${measMode===m}">${t}</button>`));
     if(mode==='poly'&&cur.length>=3)B.unshift('<button class="go" data-q="close">Cerrar área</button>');
     B.push('<button data-q="ra">En vivo RA</button>','<button data-q="recal">Recalibrar</button>','<button data-q="save">Guardar vista</button>');}
-  else{B.push('<label for="fCam2">Foto panel</label>',`<button data-q="min">Mín. ${tMin?f2(tMin)+' mm':'—'}</button>`,'<button data-q="save">Guardar vista</button>','<button data-q="share">Compartir</button>');}
+  else if(!hasZone())B.push('<label for="fCam2" class="go">Foto zona</label>');
+  else{const P=pendUT();if(P.length)B.push(`<button class="go" data-q="read">Leer ${tagOf(P[0])}</button>`);B.push('<label for="fCam2">Cambiar foto</label>',`<button data-q="min">Mín. ${tMin?f2(tMin)+' mm':'—'}</button>`,'<button data-q="save">Guardar vista</button>','<button data-q="share">Compartir</button>');}
   q.innerHTML=B.join('');}
 $('#quick').addEventListener('click',e=>{const b=e.target.closest('[data-q]');if(!b)return;const k=b.dataset.q;
   if(k.startsWith('m:'))setMode(k.slice(2));else if(k==='close')$('#close').click();else if(k==='ra')$('#arBtn').click();
-  else if(k==='recal'){$('#recal').click();$('#cardCal').open=true;}else if(k==='save')$('#galSave').click();else if(k==='share')shareTxt();
+  else if(k==='recal'){$('#recal').click();$('#cardCal').open=true;}else if(k==='save')$('#galSave').click();else if(k==='share')shareTxt();else if(k==='read'){const P=pendUT();if(P.length)readFor(P[0]);}
   else if(k==='min'){$('#cardUT').scrollIntoView({block:'center',behavior:'smooth'});setTimeout(()=>$('#tMin').focus(),300);}
   renderQuick();});
 function ui(){renderQuick();
   const n=$('#stepN'),t=$('#stepT');
-  if(app==='ut'&&!img){n.textContent='1';t.textContent='Toma la foto del panel o lee primero el espesor del medidor.';}
+  if(app==='ut'){const z=hasZone();$('#camFab').htmlFor=z?'uCam2':'fCam2';$('#camFab').setAttribute('aria-label',z?'Leer espesor del medidor':'Foto de la zona a inspeccionar');
+    $('#utGaugeBtn').hidden=!z;$('#utZoneBtn').classList.toggle('primary',!z);$('#utZoneBtn').classList.toggle('big',!z);$('#utZoneTxt').textContent=z?'Cambiar foto de la zona':'1 · Foto de la zona a inspeccionar';}
+  else{$('#camFab').htmlFor='fCam';$('#camFab').setAttribute('aria-label','Tomar foto');}
+  if(app==='ut'&&!hasZone()){n.textContent='1';t.textContent='Toma la foto de la zona a inspeccionar.';}
   else if(!img){n.textContent='1';t.textContent=calMode==='marker'?`Toma una foto con el marcador de ${f1(S)} cm sobre la superficie.`:`Toma una foto de frente donde se vea un tubo de Ø ${f1(OD)} mm.`;}
   else if(app==='ut'&&lastAuto&&measures.includes(lastAuto)){n.textContent='P';t.textContent=`${tagOf(lastAuto)} = ${lastAuto.e.toFixed(2)} mm colocado en la imagen. Toca o arrastra para ubicarlo donde se midió.`;}
   else if(app==='ut'){const u=measures.find(x=>x.type==='ut'&&!x.pts.length);n.textContent='P';
-    t.textContent=u?`Toca en la foto dónde mediste ${tagOf(u)} (${u.e!=null?u.e.toFixed(2)+' mm':'sin lectura'}).`:`Toca un punto o usa Leer espesor del medidor (P${nextN('ut')}).`;}
+    const P=pendUT(),nu=measures.filter(x=>x.type==='ut'&&x.pts.length).length;if(!u&&!nu)n.textContent='2';
+    t.textContent=u?`Toca en la foto dónde mediste ${tagOf(u)} (${u.e!=null?u.e.toFixed(2)+' mm':'sin lectura'}).`:!nu?`Toca en la foto cada punto de medición (P1, P2…).`:P.length?`Agrega más puntos (P${nextN('ut')}) o toca un punto para leer su espesor · ${P.length} pendiente${P.length>1?'s':''}.`:`Todos los puntos tienen lectura. Toca para agregar P${nextN('ut')}.`;}
   else if(mode==='marker'){n.textContent='1';t.textContent=calMode==='marker'?`Toca las 4 esquinas del marcador (${marker.length}/4).`:`Toca los 2 bordes del tubo de referencia, perpendicular a su eje (${marker.length}/2).`;}
   else if(mode==='ut'){n.textContent='P';t.textContent=`Toca el punto donde mediste el espesor (P${nextN('ut')}). No requiere calibrar.`;}
   else{n.textContent='2';t.textContent={rect:`Toca las 4 esquinas del parche (${cur.length}/4).`,dist:`Toca los 2 extremos a medir (${cur.length}/2).`,
@@ -493,7 +502,7 @@ function ui(){renderQuick();
 function renderList(valuesOnly){const box=$('#res');
   if(valuesOnly){measures.forEach(m=>{const el=box.querySelector(`[data-id="${m.id}"] .vals`);if(el)el.textContent=fmt(m);});return;}
   const L=visList();
-  if(!L.length){box.innerHTML=app==='ut'?'<p class="none">Aún no hay lecturas. Toca un punto sobre la foto del panel.</p>':'<p class="none">Aún no hay mediciones. Calibra y toca los puntos sobre la foto.</p>';return;}
+  if(!L.length){box.innerHTML=app==='ut'?'<p class="none">Aún no hay puntos. Toma la foto de la zona y toca los puntos de medición.</p>':'<p class="none">Aún no hay mediciones. Calibra y toca los puntos sobre la foto.</p>';return;}
   box.innerHTML='';L.forEach(m=>{const d=document.createElement('div');d.className='item'+(m.id===sel?' sel':'');d.dataset.id=m.id;
     d.innerHTML=`<span class="tag">${tagOf(m)}</span><span class="kind">${NAMES[m.type]}${m.ax?' · '+m.ax:''}</span><button class="x" aria-label="Borrar ${tagOf(m)}">✕</button><span class="vals"></span><input type="text" id="note${m.id}" placeholder="Ubicación / nota (ej. Panel 12, elev. 18 m)"><button class="lab">Etiqueta</button>`;
     d.querySelector('.vals').textContent=fmt(m);

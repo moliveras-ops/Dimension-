@@ -55,7 +55,12 @@ button:hover{border-color:var(--muted)}
 button:focus-visible,input:focus-visible,label.btn:focus-within{outline:2px solid var(--accent);outline-offset:2px}
 button.primary,label.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}
 button:disabled{opacity:.45;cursor:not-allowed}
-.modes{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.modes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.appTabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--chip);border:1px solid var(--line);border-radius:7px;padding:4px}
+.appTabs button{border:none;background:transparent;justify-content:center;min-height:48px;font-size:15px;gap:8px}
+.appTabs button svg{width:20px;height:20px;flex:none}
+.appTabs button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+.steps{margin:0;padding-left:18px;display:grid;gap:4px;font-size:14px}
 .ev{grid-column:1/4;max-height:60px;max-width:100%;width:auto;border-radius:3px;border:1px solid var(--line);cursor:pointer;justify-self:start}
 .vals.tap{cursor:pointer;text-decoration:underline dotted}
 .utBox{background:#000;border-radius:5px;overflow:hidden;touch-action:none}
@@ -133,6 +138,11 @@ dialog::backdrop{background:rgba(5,9,13,.6)}
     </div>
   </header>
 
+  <nav class="appTabs" id="appTabs" aria-label="Función">
+    <button data-app="medir" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><path d="M8 14h8M8 12v4M16 12v4"/></svg>Medir con cámara</button>
+    <button data-app="ut" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8v5H8z"/><path d="M9 16h.01M12 16h.01M15 16h.01"/></svg>Registro de espesores</button>
+  </nav>
+
   <div class="step"><span class="n" id="stepN">1</span><p id="stepT">Calibra con el marcador.</p></div>
 
   <div class="main">
@@ -144,7 +154,7 @@ dialog::backdrop{background:rgba(5,9,13,.6)}
     </div>
 
     <div class="panel">
-      <div class="card">
+      <div class="card" id="cardCal">
         <span class="lbl">Calibración</span>
         <div class="seg" id="calSeg"><button data-c="marker" aria-pressed="true">Marcador</button><button data-c="tube" aria-pressed="false">Diámetro de tubo</button></div>
         <div class="row" id="rowMarker"><label for="mSize">Lado del marcador</label><input id="mSize" type="number" step="0.1" min="1" value="10"> <span>cm</span></div>
@@ -153,16 +163,21 @@ dialog::backdrop{background:rgba(5,9,13,.6)}
         <div class="row"><button id="recal">Recalibrar</button><span class="scale" id="scale">Sin calibrar</span></div>
       </div>
 
-      <div class="card">
+      <div class="card" id="cardUT" hidden>
+        <span class="lbl">Registro de espesores</span>
+        <ol class="steps"><li>Toma una foto del panel o zona inspeccionada.</li><li>Toca cada punto donde mediste.</li><li>Fotografía la pantalla del medidor y confirma el valor.</li></ol>
+        <div class="row" id="rowMin"><label for="tMin">Espesor mínimo requerido</label><input id="tMin" type="number" step="0.01" min="0" placeholder="—"> <span>mm</span></div>
+        <div class="row"><button id="undoUT">Quitar último punto</button></div>
+      </div>
+
+      <div class="card" id="cardModes">
         <span class="lbl">Qué medir</span>
         <div class="modes" id="modes">
           <button data-m="rect" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="6" width="16" height="12"/></svg>Parche</button>
           <button data-m="dist" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h16M4 8v8M20 8v8"/></svg>Largo</button>
           <button data-m="diam" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M6 18 18 6"/></svg>Diámetro</button>
-          <button data-m="ut" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8v5H8z"/><path d="M9 16h.01M12 16h.01M15 16h.01"/></svg>Espesor</button>
           <button data-m="poly" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 7l7-3 7 5-2 10H7z"/></svg>Área libre</button>
         </div>
-        <div class="row" id="rowMin" hidden><label for="tMin">Espesor mínimo requerido</label><input id="tMin" type="number" step="0.01" min="0" placeholder="—"> <span>mm</span></div>
         <div class="row">
           <button id="undo">Deshacer punto</button>
           <button id="close" class="primary" hidden>Cerrar área</button>
@@ -170,7 +185,7 @@ dialog::backdrop{background:rgba(5,9,13,.6)}
       </div>
 
       <div class="card">
-        <div class="row" style="justify-content:space-between"><span class="lbl">Mediciones</span>
+        <div class="row" style="justify-content:space-between"><span class="lbl" id="resTitle">Mediciones</span>
           <div class="row"><button id="copy">Copiar</button><button id="csv">CSV</button><button id="png">Imagen</button></div></div>
         <div class="res" id="res"></div>
       </div>
@@ -180,7 +195,7 @@ dialog::backdrop{background:rgba(5,9,13,.6)}
         <div class="thumbs" id="gal"></div>
       </div>
 
-      <p class="hint">Calibra en el mismo plano que lo que mides: marcador apoyado sobre la superficie, o un tubo de la misma pared. Mantén el teléfono lo más perpendicular posible y llena la foto con la zona de interés. Mantén presionado para afinar el punto con la lupa.</p>
+      <p class="hint" id="footHint">Calibra en el mismo plano que lo que mides: marcador apoyado sobre la superficie, o un tubo de la misma pared. Mantén el teléfono lo más perpendicular posible y llena la foto con la zona de interés. Mantén presionado para afinar el punto con la lupa.</p>
     </div>
   </div>
 </div>
@@ -259,6 +274,9 @@ function homog(src,dst){const A=[],b=[];
     A.push([x,y,1,0,0,0,-u*x,-u*y]);b.push(u);A.push([0,0,0,x,y,1,-v*x,-v*y]);b.push(v);}
   const h=solve(A,b);return h?[...h,1]:null;}
 function apply(h,[x,y]){const w=h[6]*x+h[7]*y+h[8];return[(h[0]*x+h[1]*y+h[2])/w,(h[3]*x+h[4]*y+h[5])/w];}
+let app='medir';
+const vis=m=>app==='ut'?m.type==='ut':m.type!=='ut';
+const visList=()=>measures.filter(vis);
 const tagOf=m=>(m.type==='ut'?'P':'M')+m.n;
 const nextN=t=>measures.filter(m=>(m.type==='ut')===(t==='ut')).length+1;
 function renum(){let a=0,b=0;measures.forEach(m=>m.n=m.type==='ut'?++b:++a);}
@@ -302,9 +320,9 @@ function render(g,T,u){ // T: imagen->lienzo, u: escala de grosor
   const label=(p,txt,col)=>labelS(T(p),txt,col);
   const labelS=(s,txt,col)=>{g.font=`600 ${13*u}px "IBM Plex Mono",ui-monospace,monospace`;const w=g.measureText(txt).width+12*u,h=22*u;
     g.fillStyle='rgba(8,12,16,.82)';g.fillRect(s[0]-w/2,s[1]-h/2,w,h);g.fillStyle=col;g.textAlign='center';g.textBaseline='middle';g.fillText(txt,s[0],s[1]+1*u);};
-  if(marker.length){const quad=calMode==='marker'&&marker.length===4,q=quad?sortQuad(marker):marker;path(q,quad);stroke(C_MARK,2,false);marker.forEach(p=>dot(p,C_MARK));
+  if(marker.length&&app==='medir'){const quad=calMode==='marker'&&marker.length===4,q=quad?sortQuad(marker):marker;path(q,quad);stroke(C_MARK,2,false);marker.forEach(p=>dot(p,C_MARK));
     if(H&&q.length>=2)label([(q[0][0]+q[1][0])/2,(q[0][1]+q[1][1])/2],calMode==='marker'?`REF ${f1(S)} cm`:`Ø REF ${f1(OD)} mm`,C_MARK);}
-  measures.forEach(m=>{if(!m.pts.length)return;
+  measures.forEach(m=>{if(!m.pts.length||!vis(m))return;
     if(m.type==='ut'){const col=low(m)?C_LOW:m.e==null?'#c7d0d8':C_UT;dot(m.pts[0],col);const s0=T(m.pts[0]);labelS([s0[0],s0[1]-22*u],`${tagOf(m)} ${m.e==null?'?':m.e.toFixed(2)}`,col);return;}
     const col=m.id===sel?C_SEL:C_MEAS;path(m.pts,m.type==='rect'||m.type==='poly');stroke(col,2.5,false);m.pts.forEach(p=>dot(p,col));
     const c=m.type==='dist'||m.type==='diam'?[(m.pts[0][0]+m.pts[1][0])/2,(m.pts[0][1]+m.pts[1][1])/2]:[m.pts.reduce((s,p)=>s+p[0],0)/m.pts.length,m.pts.reduce((s,p)=>s+p[1],0)/m.pts.length];
@@ -325,7 +343,7 @@ function showLoupe(s,p){loupe.hidden=false;const L=140;loupe.width=L*dpr;loupe.h
 function evPt(e){const r=cv.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top];}
 function hit(s){let best=null,bd=24;
   const test=(arr,owner)=>arr.forEach((p,i)=>{const d=dist(toScr(p),s);if(d<bd){bd=d;best={arr,i,owner};}});
-  test(marker,'marker');test(cur,'cur');measures.forEach(m=>test(m.pts,m));return best;}
+  if(app==='medir')test(marker,'marker');test(cur,'cur');visList().forEach(m=>test(m.pts,m));return best;}
 const target=()=>mode==='marker'?marker:cur;
 function canAdd(){if(mode==='ut')return true;if(mode==='marker')return marker.length<needCal();if(!H)return false;return mode==='poly'||cur.length<NEED[mode];}
 cv.addEventListener('pointerdown',e=>{if(!img)return;e.preventDefault();cv.setPointerCapture(e.pointerId);const s=evPt(e);
@@ -348,9 +366,18 @@ function commit(){if(mode!=='poly'&&mode!=='rect'&&cur.length<2)return;
   const pts=mode==='rect'?sortQuad(cur):cur.slice();const m={id:++seq,n:nextN(mode),type:mode,pts,note:''};
   measures.push(m);sel=m.id;cur=[];renderList();}
 
-function setMode(m){measMode=m;cur=[];mode=m==='ut'?'ut':H?m:'marker';$('#rowMin').hidden=m!=='ut';
+function setMode(m){measMode=m;cur=[];mode=m==='ut'?'ut':H?m:'marker';
   document.querySelectorAll('#modes button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===m));ui();draw();}
 document.querySelectorAll('#modes button').forEach(b=>b.onclick=()=>setMode(b.dataset.m));
+function setApp(a,quiet){app=a;try{localStorage.setItem('app',a)}catch(_){}
+  document.querySelectorAll('#appTabs button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.app===a));
+  const ut=a==='ut';$('#cardCal').hidden=ut;$('#cardModes').hidden=ut;$('#cardUT').hidden=!ut;$('#arBtn').hidden=ut;
+  $('#resTitle').textContent=ut?'Lecturas de espesor':'Mediciones';
+  $('#footHint').textContent=ut?'Fotografía la pantalla del medidor de frente y sin reflejos. Revisa siempre el valor leído antes de guardarlo.':'Calibra en el mismo plano que lo que mides: marcador apoyado sobre la superficie, o un tubo de la misma pared. Mantén presionado para afinar el punto con la lupa.';
+  if(ut){cur=[];mode='ut';}else{if(measMode==='ut')measMode='rect';setMode(measMode);}
+  const sv=visList().find(m=>m.id===sel);if(!sv)sel=null;ui();renderList();draw();}
+document.querySelectorAll('#appTabs button').forEach(b=>b.onclick=()=>setApp(b.dataset.app));
+$('#undoUT').onclick=()=>{const L=visList();if(!L.length)return;const m=L[L.length-1];measures=measures.filter(x=>x!==m);renum();renderList();draw();ui();};
 $('#undo').onclick=()=>{if(cur.length)cur.pop();else if(mode==='marker'&&marker.length){marker.pop();calib();}ui();draw();};
 $('#close').onclick=()=>{if(cur.length>=3){commit();ui();draw();}};
 $('#recal').onclick=()=>{marker=[];H=null;mode='marker';cur=[];ui();draw();renderList();};
@@ -363,7 +390,9 @@ $('#mSize').addEventListener('input',e=>{const v=parseFloat(e.target.value);if(v
 
 function ui(){
   const n=$('#stepN'),t=$('#stepT');
-  if(!img){n.textContent='1';t.textContent=calMode==='marker'?`Toma una foto con el marcador de ${f1(S)} cm sobre la superficie.`:`Toma una foto de frente donde se vea un tubo de Ø ${f1(OD)} mm.`;}
+  if(app==='ut'&&!img){n.textContent='1';t.textContent='Toma una foto del panel o zona donde mediste espesores.';}
+  else if(!img){n.textContent='1';t.textContent=calMode==='marker'?`Toma una foto con el marcador de ${f1(S)} cm sobre la superficie.`:`Toma una foto de frente donde se vea un tubo de Ø ${f1(OD)} mm.`;}
+  else if(app==='ut'){n.textContent='P';t.textContent=`Toca el punto donde mediste el espesor (P${nextN('ut')}).`;}
   else if(mode==='marker'){n.textContent='1';t.textContent=calMode==='marker'?`Toca las 4 esquinas del marcador (${marker.length}/4).`:`Toca los 2 bordes del tubo de referencia, perpendicular a su eje (${marker.length}/2).`;}
   else if(mode==='ut'){n.textContent='P';t.textContent=`Toca el punto donde mediste el espesor (P${nextN('ut')}). No requiere calibrar.`;}
   else{n.textContent='2';t.textContent={rect:`Toca las 4 esquinas del parche (${cur.length}/4).`,dist:`Toca los 2 extremos a medir (${cur.length}/2).`,
@@ -379,8 +408,9 @@ function ui(){
 
 function renderList(valuesOnly){const box=$('#res');
   if(valuesOnly){measures.forEach(m=>{const el=box.querySelector(`[data-id="${m.id}"] .vals`);if(el)el.textContent=fmt(m);});return;}
-  if(!measures.length){box.innerHTML='<p class="none">Aún no hay mediciones. Calibra y toca los puntos sobre la foto.</p>';return;}
-  box.innerHTML='';measures.forEach(m=>{const d=document.createElement('div');d.className='item'+(m.id===sel?' sel':'');d.dataset.id=m.id;
+  const L=visList();
+  if(!L.length){box.innerHTML=app==='ut'?'<p class="none">Aún no hay lecturas. Toca un punto sobre la foto del panel.</p>':'<p class="none">Aún no hay mediciones. Calibra y toca los puntos sobre la foto.</p>';return;}
+  box.innerHTML='';L.forEach(m=>{const d=document.createElement('div');d.className='item'+(m.id===sel?' sel':'');d.dataset.id=m.id;
     d.innerHTML=`<span class="tag">${tagOf(m)}</span><span class="kind">${NAMES[m.type]}${m.ax?' · '+m.ax:''}</span><button class="x" aria-label="Borrar ${tagOf(m)}">✕</button><span class="vals"></span><input type="text" id="note${m.id}" placeholder="Ubicación / nota (ej. Panel 12, elev. 18 m)"><button class="lab">Etiqueta</button>`;
     d.querySelector('.vals').textContent=fmt(m);
     if(m.type==='ut'){const v=d.querySelector('.vals');v.classList.add('tap');v.onclick=()=>openUT(m);if(low(m))v.style.color='var(--warn)';
@@ -392,26 +422,26 @@ function renderList(valuesOnly){const box=$('#res');
 
 /* ---------- carga de fotos ---------- */
 function load(file){if(!file)return;const url=URL.createObjectURL(file);const im=new Image();
-  im.onload=()=>{img=im;isSample=false;marker=[];H=null;cur=[];measures=[];sel=null;mode='marker';fit();ui();renderList();};
+  im.onload=()=>{img=im;isSample=false;marker=[];H=null;cur=[];measures=[];sel=null;mode=app==='ut'?'ut':'marker';fit();ui();renderList();};
   im.onerror=()=>toast('No se pudo abrir la imagen. Prueba con JPG o PNG.');im.src=url;}
 $('#fCam').onchange=e=>{load(e.target.files[0]);e.target.value='';};
 $('#fGal').onchange=e=>{load(e.target.files[0]);e.target.value='';};
 
 /* ---------- exportar ---------- */
-function rows(){return measures.map(m=>{const r=calc(m)||{};
+function rows(){return visList().map(m=>{const r=calc(m)||{};
   return[tagOf(m),NAMES[m.type],
     m.type==='rect'?f1(r.L):m.type==='dist'||m.type==='diam'||m.type==='ar'?f1(r.v):'',
     m.type==='rect'?f1(r.W):'',
     m.type==='rect'||m.type==='poly'?f0(r.A).replace(/\./g,''):'',
     m.type==='ut'&&m.e!=null?m.e.toFixed(2):'',m.type==='ut'&&m.e!=null&&tMin?(low(m)?'Bajo mínimo':'OK'):'',m.note];});}
 const HEAD=['ID','Tipo','Largo/Ø (cm)','Ancho (cm)','Área (cm²)','Espesor (mm)','Estado','Nota'];
-$('#copy').onclick=()=>{if(!measures.length)return toast('No hay mediciones para copiar.');
+$('#copy').onclick=()=>{if(!visList().length)return toast('No hay mediciones para copiar.');
   const t=[HEAD,...rows()].map(r=>r.join('\t')).join('\n');
   navigator.clipboard.writeText(t).then(()=>toast('Copiado. Pégalo en Excel o en el informe.'),()=>toast('No se pudo copiar en este navegador.'));};
 function save(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();
   toast(`Guardando ${name}`);}
 const stamp=()=>new Date().toISOString().slice(0,16).replace(/[-:T]/g,'');
-$('#csv').onclick=()=>{if(!measures.length)return toast('No hay mediciones para exportar.');
+$('#csv').onclick=()=>{if(!visList().length)return toast('No hay mediciones para exportar.');
   const t=[HEAD,...rows()].map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(';')).join('\r\n');
   save(new Blob(['﻿'+t],{type:'text/csv'}),`mediciones_${stamp()}.csv`);};
 $('#png').onclick=()=>{if(!img)return;const c=document.createElement('canvas');c.width=iw();c.height=ih();
@@ -534,7 +564,7 @@ function fullRender(){const c=document.createElement('canvas');c.width=iw();c.he
 function showPv(){const x=gal[gi];if(!x){$('#pv').close();return;}$('#pvImg').src=x.url;$('#pvImg').classList.remove('zoom');
   $('#pvCap').textContent=x.cap;$('#pvN').textContent=`Imagen ${gi+1} de ${gal.length} · ${x.date}`;$('#pvDel').textContent='Borrar';$('#pvDel').dataset.arm='';
   $('#pvPrev').disabled=gi===0;$('#pvNext').disabled=gi===gal.length-1;}
-$('#galSave').onclick=()=>{if(!img)return toast('Primero toma una foto.');const ph=measures.filter(m=>m.pts.length);addGal(fullRender(),capOf(ph));toast('Vista guardada en Imágenes.');};
+$('#galSave').onclick=()=>{if(!img)return toast('Primero toma una foto.');const ph=visList().filter(m=>m.pts.length);addGal(fullRender(),capOf(ph));toast('Vista guardada en Imágenes.');};
 $('#pvClose').onclick=()=>$('#pv').close();
 $('#pvPrev').onclick=()=>{if(gi>0){gi--;showPv();}};$('#pvNext').onclick=()=>{if(gi<gal.length-1){gi++;showPv();}};
 let sw0=null;
@@ -680,7 +710,9 @@ function sample(){const c=document.createElement('canvas');c.width=1400;c.height
   const p1={id:++seq,n:1,type:'ut',pts:[M([33,14])],e:6.12,note:'Tubo 14',ev:null},p2={id:++seq,n:2,type:'ut',pts:[M([72,66])],e:4.85,note:'Tubo 20',ev:null};
   measures=[m1,m2,p1,p2];sel=1;calib();mode=measMode;}
 sample();
-new ResizeObserver(fit).observe(stage);fit();ui();renderList();
+try{const a=localStorage.getItem('app');if(a==='ut'||location.hash==='#espesores')app='ut';}catch(_){}
+if(location.hash==='#espesores')app='ut';
+new ResizeObserver(fit).observe(stage);fit();setApp(app);
 })();
 </script>
 

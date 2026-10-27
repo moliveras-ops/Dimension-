@@ -337,7 +337,7 @@ header .row svg{width:22px;height:22px}
 (()=>{
 const $=s=>document.querySelector(s);
 const cv=$('#cv'),ctx=cv.getContext('2d'),loupe=$('#loupe'),lctx=loupe.getContext('2d'),stage=$('#stage');
-const APP_VER=30;
+const APP_VER=31;
 $('#ver').textContent='v'+APP_VER;$('#ver').title='Versión '+APP_VER;
 try{const pv=+localStorage.getItem('ver');if(pv&&pv!==APP_VER)setTimeout(()=>toast('App actualizada a la versión '+APP_VER),600);localStorage.setItem('ver',APP_VER);}catch(_){}
 const C_MARK='#22d3ee',C_MEAS='#ffd400',C_SEL='#ff6b2c',C_UT='#7dff9b',C_LOW='#ff4d4d';
@@ -619,7 +619,7 @@ $('#uCam2').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)retur
 $('#uCam3').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f){autoSave=false;return;}busy(true);utLoad(f);};
 $('#fCam2').onchange=e=>{load(e.target.files[0]);e.target.value='';};
 $('#utClose').onclick=()=>{autoSave=false;$('#utD').close();};
-$('#uOk').onclick=()=>{const v=parseFloat(String($('#uVal').value).replace(',','.'));if(!(v>0))return uMsg('Ingresa un valor válido.');
+$('#uOk').onclick=()=>{const v=parseFloat(String($('#uVal').value).replace(',','.'));if(!(v>0)){autoSave=false;$('#utD').close();renderList();draw();ui();toast(`${tagOf(utM)} quedó sin lectura`);return;}
   utM.e=v;if(utImg&&utSel)utM.ev=evCrop();if(!measures.includes(utM)){utM.n=nextN('ut');measures.push(utM);sel=utM.id;}
   if(!utM.pts.length&&utImg){
     if(!img||isSample){img=utImg;isSample=false;marker=[];H=null;cur=[];measures=measures.filter(x=>x.type==='ut'&&(x===utM||!x.pts.length||x.onGauge));renum();fit();}
@@ -652,10 +652,13 @@ function prep(){const r=utSel,k=Math.max(.3,Math.min(5,140/r.h)),w=Math.round(r.
   const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d');g.filter='grayscale(1) blur('+Math.max(1,Math.round(h/70))+'px)';
   g.drawImage(utImg,r.x,r.y,r.w,r.h,0,0,w,h);const id=g.getImageData(0,0,w,h),D=id.data,hist=new Array(256).fill(0);
   for(let i=0;i<D.length;i+=4){const v=Math.round(.299*D[i]+.587*D[i+1]+.114*D[i+2]);D[i]=v;hist[v]++;}
-  const N=w*h;let sum=0;for(let i=0;i<256;i++)sum+=i*hist[i];let sB=0,wB=0,best=0,th=128;
-  for(let t=0;t<256;t++){wB+=hist[t];if(!wB)continue;const wF=N-wB;if(!wF)break;sB+=t*hist[t];const mB=sB/wB,mF=(sum-sB)/wF,b=wB*wF*(mB-mF)**2;if(b>best){best=b;th=t;}}
-  let dark=0;for(let i=0;i<D.length;i+=4)if(D[i]<=th)dark++;const inv=dark>N/2;
-  for(let i=0;i<D.length;i+=4){let on=D[i]<=th;if(inv)on=!on;const v=on?0:255;D[i]=D[i+1]=D[i+2]=v;D[i+3]=255;}
+  const N=w*h,II=new Float64Array((w+1)*(h+1));for(let y=0;y<h;y++){let row=0;for(let x=0;x<w;x++){row+=D[(y*w+x)*4];II[(y+1)*(w+1)+x+1]=II[y*(w+1)+x+1]+row;}}
+  const rr=Math.max(4,Math.round(Math.max(w,h)/5)),mean=new Float32Array(N);
+  for(let y=0;y<h;y++){const a0=Math.max(0,y-rr),a1=Math.min(h,y+rr+1);for(let x=0;x<w;x++){const b0=Math.max(0,x-rr),b1=Math.min(w,x+rr+1);
+    mean[y*w+x]=(II[a1*(w+1)+b1]-II[a0*(w+1)+b1]-II[a1*(w+1)+b0]+II[a0*(w+1)+b0])/((a1-a0)*(b1-b0));}}
+  let nd=0,nl=0;for(let i=0;i<N;i++){const v=D[i*4],m=mean[i];if(v<m*.9&&v<m-6)nd++;else if(v>m*1.1&&v>m+6)nl++;}
+  const light=nl>.01*N&&(nd<.01*N||nl<nd);
+  for(let i=0;i<N;i++){const v=D[i*4],m=mean[i],on=light?(v>m*1.1&&v>m+6):(v<m*.9&&v<m-6);const o=on?0:255;D[i*4]=D[i*4+1]=D[i*4+2]=o;D[i*4+3]=255;}
   const o=document.createElement('canvas');o.width=w+2*pad;o.height=h+2*pad;const og=o.getContext('2d');og.fillStyle='#fff';og.fillRect(0,0,o.width,o.height);
   const t=document.createElement('canvas');t.width=w;t.height=h;t.getContext('2d').putImageData(id,0,0);og.drawImage(t,pad,pad);return o;}
 function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
@@ -698,9 +701,12 @@ function lcdPrep(src){
   mg.beginPath();hull.forEach((p,i)=>{const X=((hx+(p[0]-hx)*.92)-x0)*s2,Y=((hy+(p[1]-hy)*.92)-y0)*s2;i?mg.lineTo(X,Y):mg.moveTo(X,Y);});mg.closePath();mg.fillStyle='#fff';mg.fill();
   const MD=mg.getImageData(0,0,cw,ch).data,N=cw*ch,inside=new Uint8Array(N),gv=new Uint8Array(N),hist=new Array(256).fill(0);let tot=0;
   for(let i=0;i<N;i++){inside[i]=MD[i*4]>127?1:0;gv[i]=G[i*4+1];if(inside[i]){hist[gv[i]]++;tot++;}}
-  let sum=0;for(let i=0;i<256;i++)sum+=i*hist[i];let sB=0,wB=0,bv=0,th=128;
-  for(let t=0;t<256;t++){wB+=hist[t];if(!wB)continue;const wF=tot-wB;if(!wF)break;sB+=t*hist[t];const mB=sB/wB,mF=(sum-sB)/wF,v=wB*wF*(mB-mF)**2;if(v>bv){bv=v;th=t;}}
-  const dark=new Uint8Array(N);for(let i=0;i<N;i++)dark[i]=inside[i]&&gv[i]<=th?1:0;
+  // umbral adaptativo: compara cada píxel con el promedio de su vecindario (tolera reflejos y sombras sobre la pantalla)
+  const II=new Float64Array((cw+1)*(ch+1));for(let y=0;y<ch;y++){let row=0;for(let x=0;x<cw;x++){row+=gv[y*cw+x];II[(y+1)*(cw+1)+x+1]=II[y*(cw+1)+x+1]+row;}}
+  const rr=Math.max(4,Math.round(Math.max(cw,ch)/5)),dark=new Uint8Array(N);
+  for(let y=0;y<ch;y++){const y0_=Math.max(0,y-rr),y1_=Math.min(ch,y+rr+1);for(let x=0;x<cw;x++){const i=y*cw+x;if(!inside[i])continue;
+    const x0_=Math.max(0,x-rr),x1_=Math.min(cw,x+rr+1),A=(y1_-y0_)*(x1_-x0_),m=(II[y1_*(cw+1)+x1_]-II[y0_*(cw+1)+x1_]-II[y1_*(cw+1)+x0_]+II[y0_*(cw+1)+x0_])/A;
+    dark[i]=gv[i]<m*.9&&gv[i]<m-6?1:0;}}
   const lab=new Int32Array(N),comps=[];let id=0;
   for(let i=0;i<N;i++){if(!dark[i]||lab[i])continue;id++;let qh=0,qt=0;q.length<N;const Q=[i];lab[i]=id;let sx=0,sy=0,n=0,mnx=1e9,mny=1e9,mxx=-1,mxy=-1;
     while(qh<Q.length){const j=Q[qh++];const x=j%cw,y=(j-x)/cw;sx+=x;sy+=y;n++;if(x<mnx)mnx=x;if(x>mxx)mxx=x;if(y<mny)mny=y;if(y>mxy)mxy=y;
@@ -722,7 +728,7 @@ function lcdPrep(src){
   const tb=big.map(T).sort((a,b)=>a-b),bigSet=new Set(big);
   const inGap=t=>{for(let i=0;i<tb.length-1;i++)if(t>tb[i]&&t<tb[i+1])return true;return false;};
   const dots=comps.filter(c=>!bigSet.has(c)&&c.n<.2*mx&&c.n>.005*mx&&ext(c,-dy,dx)<.35*hgt&&inGap(T(c))&&Math.abs(S(c))>.22*hgt&&Math.abs(S(c))<.65*hgt)
-    .sort((a,b)=>Math.abs(Math.abs(S(a))-.42*hgt)-Math.abs(Math.abs(S(b))-.42*hgt));
+    .sort((a,b)=>(Math.abs(Math.abs(S(a))-.42*hgt)+(S(a)<0?.3*hgt:0))-(Math.abs(Math.abs(S(b))-.42*hgt)+(S(b)<0?.3*hgt:0)));
   let dot=dots[0]||null,flip=false;if(dot&&S(dot)<0)flip=true;
   if(flip){dx=-dx;dy=-dy;}
   let frac=null;if(dot){const td=T(dot)*(flip?-1:1);frac=big.filter(c=>T(c)*(flip?-1:1)>td).length;if(frac<1||frac>3)frac=null;}
@@ -746,6 +752,7 @@ async function lcdRead(){const L=lcdPrep(utImg);if(!L)return null;const w=await 
       if(ok)v=parseFloat(dg.slice(0,-L.frac)+'.'+dg.slice(-L.frac));
       else if(/^\d{1,3}\.\d{1,3}$/.test(t))v=parseFloat(t);
       else if(dg.length>=3){v=parseFloat(dg)/100;guess=true;}
+      if(v>=100&&dg.length>=3&&dg.length<=4){v=parseFloat(dg)/100;}
       if(!(v>.2&&v<300))continue;const h=wd.bbox.y1-wd.bbox.y0,score=h*(guess?.6:1)*(ok?1.3:1);
       if(!best||score>best.score)best={v,conf:Math.max(wd.confidence,ok&&dg.length>=3&&dg.length<=5?75:0),score,guess};}
     if(best&&!best.guess)break;}

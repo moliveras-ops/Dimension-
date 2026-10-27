@@ -502,15 +502,15 @@ function openUT(m){utM=m;utImg=null;$('#utTitle').textContent=`Lectura ${tagOf(m
   $('#utBox').hidden=true;$('#utCrop').hidden=true;$('#utHint').textContent='Saca la foto de frente a la pantalla del medidor, sin reflejos.';
   if(!$('#utD').open)$('#utD').showModal();}
 $('#uCam2').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
-  const m={id:++seq,n:nextN('ut'),type:'ut',pts:[],e:null,note:'',ev:null};openUT(m);utLoad(f);};
+  const m={id:++seq,n:nextN('ut'),type:'ut',pts:[],e:null,note:'',ev:null};autoSave=true;openUT(m);utLoad(f);};
 $('#fCam2').onchange=e=>{load(e.target.files[0]);e.target.value='';};
-$('#utClose').onclick=()=>{$('#utD').close();};
+$('#utClose').onclick=()=>{autoSave=false;$('#utD').close();};
 $('#uOk').onclick=()=>{const v=parseFloat(String($('#uVal').value).replace(',','.'));if(!(v>0))return uMsg('Ingresa un valor válido.');
   utM.e=v;if(utImg&&utSel)utM.ev=evCrop();if(!measures.includes(utM)){utM.n=nextN('ut');measures.push(utM);sel=utM.id;}
   $('#utD').close();renderList();draw();ui();toast(`${tagOf(utM)}: ${v.toFixed(2)} mm`+(low(utM)?' · bajo mínimo':''));};
 $('#uDel').onclick=()=>{measures=measures.filter(x=>x!==utM);renum();$('#utD').close();renderList();draw();ui();};
 function utLoad(f){if(!f)return;const im=new Image();im.onload=()=>{utImg=im;const W=im.naturalWidth,Hh=im.naturalHeight;
-    utSel={x:W*.1,y:Hh*.3,w:W*.8,h:Hh*.4};$('#utBox').hidden=false;$('#utHint').textContent='Arrastra sobre la foto para encerrar solo el número del espesor.';utDraw();utRead();};
+    utSel={x:W*.1,y:Hh*.3,w:W*.8,h:Hh*.4};$('#utBox').hidden=false;$('#utHint').textContent='Si el valor no es el correcto, arrastra sobre la foto para encerrar solo el número.';utDraw();utAuto();};
   im.onerror=()=>uMsg('No se pudo abrir la imagen.');im.src=URL.createObjectURL(f);}
 $('#uCam').onchange=e=>{utLoad(e.target.files[0]);e.target.value='';};
 $('#uGal').onchange=e=>{utLoad(e.target.files[0]);e.target.value='';};
@@ -545,6 +545,26 @@ function parseVal(t){t=(t||'').replace(/,/g,'.').replace(/[^0-9.]/g,' ').replace
   const dec=t.match(/\d{1,3}\.\d{1,3}/);if(dec)return{v:parseFloat(dec[0]),guess:false,dg:dec[0].replace('.','')};
   const ms=(t.match(/\d+/g)||[]).sort((x,y)=>y.length-x.length),n=ms[0];if(!n)return null;
   return{v:n.length>=3?parseFloat(n)/100:parseFloat(n),guess:true,dg:n};}
+async function autoFind(){const W=utImg.naturalWidth,Hh=utImg.naturalHeight,k=Math.min(1,1400/W),w=await getW('eng');
+  let best=null;
+  for(const inv of [false,true]){const c=document.createElement('canvas');c.width=Math.round(W*k);c.height=Math.round(Hh*k);const g=c.getContext('2d');
+    g.filter='grayscale(1) contrast(1.5)'+(inv?' invert(1)':'');g.drawImage(utImg,0,0,c.width,c.height);
+    await w.setParameters({tessedit_pageseg_mode:'11'});const{data}=await w.recognize(c);
+    for(const wd of(data.words||[])){const t=wd.text.replace(/,/g,'.');if(!/^\d{1,3}\.\d{1,3}$/.test(t))continue;const v=parseFloat(t);if(!(v>.2&&v<300))continue;
+      const h=wd.bbox.y1-wd.bbox.y0;if(!best||h>best.h)best={v,h,conf:wd.confidence,b:wd.bbox,k};}
+    if(best&&best.conf>=60)break;}
+  await w.setParameters({tessedit_pageseg_mode:'7'});
+  if(best){const b=best.b,mx=(b.x1-b.x0)*.12,my=(b.y1-b.y0)*.2;
+    utSel={x:Math.max(0,(b.x0-mx)/k),y:Math.max(0,(b.y0-my)/k),w:Math.min(W,(b.x1-b.x0+2*mx)/k),h:Math.min(Hh,(b.y1-b.y0+2*my)/k)};utDraw();}
+  return best;}
+let autoSave=false;
+async function utAuto(){if(!utImg)return;uMsg('Buscando el valor en la pantalla…');reading=true;let f=null;
+  try{f=await autoFind();}catch(e){reading=false;uMsg('Lectura automática no disponible; escribe el valor.');return;}
+  reading=false;
+  if(f){$('#uVal').value=f.v.toFixed(2);
+    if(autoSave&&f.conf>=70){autoSave=false;$('#uOk').click();toast(`Leído ${f.v.toFixed(2)} mm. Toca en la foto dónde se midió.`);return;}
+    uMsg(`Leído (${Math.round(f.conf)}%). Confirma y guarda.`);}
+  else{uMsg('No encontré el valor; probando en la zona marcada…');await utRead();}}
 let reading=false;
 async function utRead(){if(!utImg||reading)return;reading=true;const c=prep(),cr=$('#utCrop');cr.hidden=false;cr.width=c.width;cr.height=c.height;cr.getContext('2d').drawImage(c,0,0);
   cr.style.width=Math.min(c.width,320)+'px';uMsg('Leyendo…');
@@ -558,7 +578,7 @@ async function utRead(){if(!utImg||reading)return;reading=true;const c=prep(),cr
     else uMsg('No se reconoció. Ajusta el recuadro o escribe el valor.');}
   catch(e){uMsg('Lectura automática no disponible aquí; escribe el valor.');}
   finally{reading=false;}}
-$('#uRead').onclick=utRead;$('#uType').onchange=utRead;
+$('#uRead').onclick=()=>{autoSave=false;utRead();};$('#uType').onchange=utRead;
 
 /* ---------- galería de imágenes ---------- */
 let gal=[],gi=0,db=null;

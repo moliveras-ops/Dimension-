@@ -408,7 +408,7 @@ function render(g,T,u){ // T: imagen->lienzo, u: escala de grosor
   if(marker.length&&app==='medir'){const quad=calMode==='marker'&&marker.length===4,q=quad?sortQuad(marker):marker;path(q,quad);stroke(C_MARK,2,false);marker.forEach(p=>dot(p,C_MARK));
     if(H&&q.length>=2)label([(q[0][0]+q[1][0])/2,(q[0][1]+q[1][1])/2],calMode==='marker'?`REF ${f1(S)} cm`:`Ø REF ${f1(OD)} mm`,C_MARK);}
   measures.forEach(m=>{if(!m.pts.length||!vis(m))return;
-    if(m.type==='ut'){const col=low(m)?C_LOW:m.e==null?'#c7d0d8':C_UT;dot(m.pts[0],col);const s0=T(m.pts[0]);labelS([s0[0],s0[1]-30*u],`${tagOf(m)} ${m.e==null?'· toca para leer':m.e.toFixed(2)+' mm'}`,col,18);return;}
+    if(m.type==='ut'){const col=low(m)?C_LOW:m.e==null?'#c7d0d8':C_UT;dot(m.pts[0],col);const s0=T(m.pts[0]);labelS([s0[0],s0[1]-30*u],`${tagOf(m)} ${m.e==null?(exporting?'· sin lectura':'· toca para leer'):m.e.toFixed(2)+' mm'}`,col,exporting?24:18);return;}
     const col=m.id===sel?C_SEL:C_MEAS;path(m.pts,m.type==='rect'||m.type==='poly');stroke(col,2.5,false);m.pts.forEach(p=>dot(p,col));
     const c=m.type==='dist'||m.type==='diam'?[(m.pts[0][0]+m.pts[1][0])/2,(m.pts[0][1]+m.pts[1][1])/2]:[m.pts.reduce((s,p)=>s+p[0],0)/m.pts.length,m.pts.reduce((s,p)=>s+p[1],0)/m.pts.length];
     label(c,`${tagOf(m)} ${fmt(m,true)}`,col);});
@@ -799,11 +799,21 @@ function renderGal(){const g=$('#gal');
   if(!gal.length){g.innerHTML='<p class="none" style="grid-column:1/-1">Guarda la vista actual o usa Foto en la RA. Las imágenes quedan en este teléfono.</p>';return;}
   g.innerHTML='';gal.forEach((x,i)=>{const b=document.createElement('button');b.className='th';b.setAttribute('aria-label',`Ver imagen ${i+1}`);
     b.innerHTML=`<img alt=""><span></span>`;b.querySelector('img').src=x.url;b.querySelector('span').textContent=x.date;b.onclick=()=>{gi=i;showPv();$('#pv').showModal();};g.appendChild(b);});}
-function fullRender(){const c=document.createElement('canvas');c.width=iw();c.height=ih();const ps=sel;sel=null;render(c.getContext('2d'),p=>p,Math.max(1,iw()/900));sel=ps;return c;}
+let exporting=false;
+function fullRender(){const c=document.createElement('canvas');c.width=iw();c.height=ih();const ps=sel;sel=null;const u=Math.max(1,iw()/900),g=c.getContext('2d');
+  exporting=true;try{render(g,p=>p,u);}finally{exporting=false;}sel=ps;
+  const U=visList().filter(m=>m.type==='ut');
+  if(app==='ut'&&U.length){const fs=22*u,lh=fs*1.45,pad=12*u,rows=U.map(m=>[tagOf(m),m.e==null?'—':m.e.toFixed(2)+' mm',m]);
+    const head='Espesores'+(tMin?` · mín ${f2(tMin)} mm`:'');g.font=`700 ${fs}px "IBM Plex Mono",ui-monospace,monospace`;
+    let w=g.measureText(head).width;rows.forEach(r=>w=Math.max(w,g.measureText(r[0]+'  '+r[1]).width));w+=pad*2;
+    const h=pad*2+lh*(rows.length+1);g.fillStyle='rgba(8,12,16,.85)';g.fillRect(pad,pad,w,h);g.textAlign='left';g.textBaseline='middle';
+    g.fillStyle='#fff';g.fillText(head,pad*2,pad*2+lh/2);
+    rows.forEach((r,i)=>{const y=pad*2+lh*(i+1.5);g.fillStyle=low(r[2])?C_LOW:r[2].e==null?'#c7d0d8':C_UT;g.fillText(r[0]+'  '+r[1],pad*2,y);});}
+  return c;}
 function showPv(){const x=gal[gi];if(!x){$('#pv').close();return;}$('#pvImg').src=x.url;$('#pvImg').classList.remove('zoom');
   $('#pvCap').textContent=x.cap;$('#pvN').textContent=`Imagen ${gi+1} de ${gal.length} · ${x.date}`;$('#pvDel').textContent='Borrar';$('#pvDel').dataset.arm='';
   $('#pvPrev').disabled=gi===0;$('#pvNext').disabled=gi===gal.length-1;}
-$('#galSave').onclick=()=>{if(!img)return toast('Primero toma una foto.');const ph=visList().filter(m=>m.pts.length);addGal(fullRender(),capOf(ph));toast('Vista guardada en Imágenes.');};
+$('#galSave').onclick=()=>{if(!img)return toast('Primero toma una foto.');if(app==='ut'){const P=pendUT();if(P.length&&!confirm(`Faltan lecturas en ${P.map(tagOf).join(', ')}. ¿Guardar la vista igual?`))return;}const ph=visList().filter(m=>m.pts.length);addGal(fullRender(),capOf(ph));toast('Vista guardada en Imágenes.');};
 $('#pvClose').onclick=()=>$('#pv').close();
 $('#pvPrev').onclick=()=>{if(gi>0){gi--;showPv();}};$('#pvNext').onclick=()=>{if(gi<gal.length-1){gi++;showPv();}};
 let sw0=null;

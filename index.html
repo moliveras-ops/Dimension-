@@ -602,7 +602,90 @@ function parseVal(t){t=(t||'').replace(/,/g,'.').replace(/[^0-9.]/g,' ').replace
   const dec=t.match(/\d{1,3}\.\d{1,3}/);if(dec)return{v:parseFloat(dec[0]),guess:false,dg:dec[0].replace('.','')};
   const ms=(t.match(/\d+/g)||[]).sort((x,y)=>y.length-x.length),n=ms[0];if(!n)return null;
   return{v:n.length>=3?parseFloat(n)/100:parseFloat(n),guess:true,dg:n};}
-async function autoFind(){const W=utImg.naturalWidth,Hh=utImg.naturalHeight,k=Math.min(1,1400/W),w=await getW();
+/* Lector de pantalla LCD: detecta la pantalla retroiluminada, endereza los dígitos y ubica el punto decimal */
+function lcdPrep(src){
+  const W=src.naturalWidth||src.width,Hh=src.naturalHeight||src.height,k=200/Math.max(W,Hh),w=Math.max(1,Math.round(W*k)),h=Math.max(1,Math.round(Hh*k));
+  const sc=document.createElement('canvas');sc.width=w;sc.height=h;const sg=sc.getContext('2d',{willReadFrequently:true});sg.drawImage(src,0,0,w,h);const D=sg.getImageData(0,0,w,h).data;
+  const mask=new Uint8Array(w*h);for(let i=0;i<w*h;i++){const r=D[i*4],g=D[i*4+1],b=D[i*4+2];mask[i]=(b>150&&b>r+40&&g>90)?1:0;}
+  const seen=new Uint8Array(w*h);let best=null;const q=new Int32Array(w*h);
+  for(let i=0;i<w*h;i++){if(!mask[i]||seen[i])continue;let qh=0,qt=0;q[qt++]=i;seen[i]=1;const pts=[];
+    while(qh<qt){const j=q[qh++];pts.push(j);const x=j%w,y=(j-x)/w;
+      if(x>0&&mask[j-1]&&!seen[j-1]){seen[j-1]=1;q[qt++]=j-1;}if(x<w-1&&mask[j+1]&&!seen[j+1]){seen[j+1]=1;q[qt++]=j+1;}
+      if(y>0&&mask[j-w]&&!seen[j-w]){seen[j-w]=1;q[qt++]=j-w;}if(y<h-1&&mask[j+w]&&!seen[j+w]){seen[j+w]=1;q[qt++]=j+w;}}
+    if(!best||pts.length>best.length)best=pts;}
+  if(!best||best.length<w*h*.004)return null;
+  let P=best.map(j=>{const x=j%w;return[(x+.5)/k,((j-x)/w+.5)/k];});
+  P.sort((a,b)=>a[0]-b[0]||a[1]-b[1]);const cr=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]);const lo=[],up=[];
+  for(const p of P){while(lo.length>=2&&cr(lo[lo.length-2],lo[lo.length-1],p)<=0)lo.pop();lo.push(p);}
+  for(let i=P.length-1;i>=0;i--){const p=P[i];while(up.length>=2&&cr(up[up.length-2],up[up.length-1],p)<=0)up.pop();up.push(p);}
+  const hull=lo.slice(0,-1).concat(up.slice(0,-1));
+  const x0=Math.max(0,Math.floor(Math.min(...hull.map(p=>p[0])))),y0=Math.max(0,Math.floor(Math.min(...hull.map(p=>p[1])))),
+        x1=Math.min(W,Math.ceil(Math.max(...hull.map(p=>p[0])))),y1=Math.min(Hh,Math.ceil(Math.max(...hull.map(p=>p[1]))));
+  const s2=400/Math.max(x1-x0,y1-y0),cw=Math.round((x1-x0)*s2),ch=Math.round((y1-y0)*s2);
+  const cc=document.createElement('canvas');cc.width=cw;cc.height=ch;const cg=cc.getContext('2d',{willReadFrequently:true});cg.drawImage(src,x0,y0,x1-x0,y1-y0,0,0,cw,ch);
+  const G=cg.getImageData(0,0,cw,ch).data;
+  const mc=document.createElement('canvas');mc.width=cw;mc.height=ch;const mg=mc.getContext('2d',{willReadFrequently:true});
+  const hx=hull.reduce((a,p)=>a+p[0],0)/hull.length,hy=hull.reduce((a,p)=>a+p[1],0)/hull.length;
+  mg.beginPath();hull.forEach((p,i)=>{const X=((hx+(p[0]-hx)*.92)-x0)*s2,Y=((hy+(p[1]-hy)*.92)-y0)*s2;i?mg.lineTo(X,Y):mg.moveTo(X,Y);});mg.closePath();mg.fillStyle='#fff';mg.fill();
+  const MD=mg.getImageData(0,0,cw,ch).data,N=cw*ch,inside=new Uint8Array(N),gv=new Uint8Array(N),hist=new Array(256).fill(0);let tot=0;
+  for(let i=0;i<N;i++){inside[i]=MD[i*4]>127?1:0;gv[i]=G[i*4+1];if(inside[i]){hist[gv[i]]++;tot++;}}
+  let sum=0;for(let i=0;i<256;i++)sum+=i*hist[i];let sB=0,wB=0,bv=0,th=128;
+  for(let t=0;t<256;t++){wB+=hist[t];if(!wB)continue;const wF=tot-wB;if(!wF)break;sB+=t*hist[t];const mB=sB/wB,mF=(sum-sB)/wF,v=wB*wF*(mB-mF)**2;if(v>bv){bv=v;th=t;}}
+  const dark=new Uint8Array(N);for(let i=0;i<N;i++)dark[i]=inside[i]&&gv[i]<=th?1:0;
+  const lab=new Int32Array(N),comps=[];let id=0;
+  for(let i=0;i<N;i++){if(!dark[i]||lab[i])continue;id++;let qh=0,qt=0;q.length<N;const Q=[i];lab[i]=id;let sx=0,sy=0,n=0,mnx=1e9,mny=1e9,mxx=-1,mxy=-1;
+    while(qh<Q.length){const j=Q[qh++];const x=j%cw,y=(j-x)/cw;sx+=x;sy+=y;n++;if(x<mnx)mnx=x;if(x>mxx)mxx=x;if(y<mny)mny=y;if(y>mxy)mxy=y;
+      for(const nb of[x>0?j-1:-1,x<cw-1?j+1:-1,y>0?j-cw:-1,y<ch-1?j+cw:-1])if(nb>=0&&dark[nb]&&!lab[nb]){lab[nb]=id;Q.push(nb);}}
+    const bw=mxx-mnx+1,bh=mxy-mny+1;if(n<15||bw>.9*cw||bh>.9*ch)continue;if(n/(bw*bh)>.85&&n>2000)continue;
+    comps.push({n,cx:sx/n,cy:sy/n,mnx,mny,mxx,mxy});}
+  if(!comps.length)return null;
+  comps.sort((a,b)=>b.n-a.n);const mx=comps[0].n;let big=comps.filter(c=>c.n>.2*mx).slice(0,8);
+  const pca=L=>{const mx_=L.reduce((a,c)=>a+c.cx,0)/L.length,my_=L.reduce((a,c)=>a+c.cy,0)/L.length;if(L.length<2)return{dx:1,dy:0,mx:mx_,my:my_};let sxx=0,sxy=0,syy=0;
+    L.forEach(c=>{const u=c.cx-mx_,v=c.cy-my_;sxx+=u*u;sxy+=u*v;syy+=v*v;});const an=.5*Math.atan2(2*sxy,sxx-syy);return{dx:Math.cos(an),dy:Math.sin(an),mx:mx_,my:my_};};
+  const ext=(c,ux,uy)=>Math.abs(ux)*(c.mxx-c.mnx+1)+Math.abs(uy)*(c.mxy-c.mny+1);
+  let F=pca(big);
+  for(let it=0;it<2;it++){const hs=big.map(c=>ext(c,-F.dy,F.dx)).sort((a,b)=>a-b),hm=hs[Math.floor(hs.length/2)];
+    const nb=big.filter(c=>{const hh=ext(c,-F.dy,F.dx),sv=Math.abs(-(c.cx-F.mx)*F.dy+(c.cy-F.my)*F.dx),fill=c.n/((c.mxx-c.mnx+1)*(c.mxy-c.mny+1));
+      return hh>.65*hm&&hh<1.35*hm&&sv<.45*hm&&fill<.8;});if(nb.length>=2){big=nb;F=pca(big);}}
+  let dx=F.dx,dy=F.dy;const mxc=F.mx,myc=F.my;
+  const T=c=>(c.cx-mxc)*dx+(c.cy-myc)*dy,S=c=>-(c.cx-mxc)*dy+(c.cy-myc)*dx;
+  const hgt=big.map(c=>ext(c,-dy,dx)).sort((a,b)=>a-b)[Math.floor(big.length/2)];
+  const tb=big.map(T).sort((a,b)=>a-b),bigSet=new Set(big);
+  const inGap=t=>{for(let i=0;i<tb.length-1;i++)if(t>tb[i]&&t<tb[i+1])return true;return false;};
+  const dots=comps.filter(c=>!bigSet.has(c)&&c.n<.2*mx&&c.n>.005*mx&&ext(c,-dy,dx)<.35*hgt&&inGap(T(c))&&Math.abs(S(c))>.22*hgt&&Math.abs(S(c))<.65*hgt)
+    .sort((a,b)=>Math.abs(Math.abs(S(a))-.42*hgt)-Math.abs(Math.abs(S(b))-.42*hgt));
+  let dot=dots[0]||null,flip=false;if(dot&&S(dot)<0)flip=true;
+  if(flip){dx=-dx;dy=-dy;}
+  let frac=null;if(dot){const td=T(dot)*(flip?-1:1);frac=big.filter(c=>T(c)*(flip?-1:1)>td).length;if(frac<1||frac>3)frac=null;}
+  const ang=Math.atan2(dy,dx),bwC=document.createElement('canvas'),R=Math.ceil(Math.hypot(cw,ch));bwC.width=R;bwC.height=R;const bg=bwC.getContext('2d');
+  bg.fillStyle='#fff';bg.fillRect(0,0,R,R);const tmp=document.createElement('canvas');tmp.width=cw;tmp.height=ch;const tg=tmp.getContext('2d'),ID=tg.createImageData(cw,ch);
+  for(let i=0;i<N;i++){const v=dark[i]?0:255;ID.data[i*4]=ID.data[i*4+1]=ID.data[i*4+2]=v;ID.data[i*4+3]=255;}tg.putImageData(ID,0,0);
+  bg.translate(R/2,R/2);bg.rotate(-ang);bg.drawImage(tmp,-mxc,-myc);
+  const bx0=Math.min(...big.map(c=>c.mnx)),by0=Math.min(...big.map(c=>c.mny)),bx1=Math.max(...big.map(c=>c.mxx)),by1=Math.max(...big.map(c=>c.mxy));
+  const sg2=flip?-1:1,tv=big.map(c=>T(c)*sg2),half=big.map(c=>ext(c,dx,dy)/2);
+  const bt0=Math.min(...tv.map((t,i)=>t-half[i]))-.25*hgt,bt1=Math.max(...tv.map((t,i)=>t+half[i]))+.25*hgt,bh=1.5*hgt,sc2=60/bh;
+  const band=document.createElement('canvas');band.width=Math.round((bt1-bt0)*sc2)+40;band.height=100;const bd=band.getContext('2d');bd.fillStyle='#fff';bd.fillRect(0,0,band.width,band.height);
+  bd.imageSmoothingQuality='high';bd.drawImage(bwC,R/2+bt0,R/2-bh/2,bt1-bt0,bh,20,20,band.width-40,60);
+  return{canvas:band,nBig:big.length,frac,box:{x:x0+bx0/s2,y:y0+by0/s2,w:(bx1-bx0)/s2,h:(by1-by0)/s2}};}
+async function lcdRead(){const L=lcdPrep(utImg);if(!L)return null;const w=await getW();
+  const tries=[L.canvas];if(L.frac==null){const f=document.createElement('canvas');f.width=L.canvas.width;f.height=L.canvas.height;const g=f.getContext('2d');g.translate(f.width/2,f.height/2);g.rotate(Math.PI);g.drawImage(L.canvas,-f.width/2,-f.height/2);tries.push(f);}
+  let best=null;
+  for(const c of tries)for(const psm of['7','11']){await w.setParameters({tessedit_pageseg_mode:psm});const{data}=await w.recognize(c);
+    for(const wd of(data.words||[])){const t=wd.text.replace(/,/g,'.');const dg=t.replace(/\D/g,'');if(dg.length<2)continue;
+      let v=null,guess=false;
+      const ok=L.frac!=null&&dg.length>L.frac&&dg.length<=6;
+      if(ok)v=parseFloat(dg.slice(0,-L.frac)+'.'+dg.slice(-L.frac));
+      else if(/^\d{1,3}\.\d{1,3}$/.test(t))v=parseFloat(t);
+      else if(dg.length>=3){v=parseFloat(dg)/100;guess=true;}
+      if(!(v>.2&&v<300))continue;const h=wd.bbox.y1-wd.bbox.y0,score=h*(guess?.6:1)*(ok?1.3:1);
+      if(!best||score>best.score)best={v,conf:Math.max(wd.confidence,ok&&dg.length>=3&&dg.length<=5?75:0),score,guess};}
+    if(best&&!best.guess)break;}
+  await w.setParameters({tessedit_pageseg_mode:'7'});
+  if(best){utSel={x:Math.max(0,L.box.x-L.box.w*.1),y:Math.max(0,L.box.y-L.box.h*.15),w:L.box.w*1.2,h:L.box.h*1.3};utDraw();}
+  return best;}
+async function autoFind(){try{const r=await lcdRead();if(r)return r;}catch(e){}
+  return autoFindGeneric();}
+async function autoFindGeneric(){const W=utImg.naturalWidth,Hh=utImg.naturalHeight,k=Math.min(1,1400/W),w=await getW();
   let best=null;
   for(const inv of [false,true]){const c=document.createElement('canvas');c.width=Math.round(W*k);c.height=Math.round(Hh*k);const g=c.getContext('2d');
     g.filter='grayscale(1) contrast(1.5)'+(inv?' invert(1)':'');g.drawImage(utImg,0,0,c.width,c.height);

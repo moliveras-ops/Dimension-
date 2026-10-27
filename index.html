@@ -68,7 +68,14 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .utBox{background:#000;border-radius:5px;overflow:hidden;touch-action:none}
 #utCv{display:block;width:100%;cursor:crosshair}
 #utCrop{max-width:100%;height:auto;border:1px solid var(--line);border-radius:3px;background:#fff}
-#uVal{width:110px;font-size:20px;font-family:var(--f-mono)}
+#uVal{width:100%;min-width:0;font-size:30px;font-weight:700;font-family:var(--f-mono);min-height:62px;padding:6px 10px}
+.utTop{display:grid;grid-template-columns:1.1fr 1fr;gap:8px;align-items:stretch}
+.utValW{display:flex;min-width:0;align-items:center;gap:6px;font-size:18px}
+#uOk{min-height:62px;font-size:20px;font-weight:700;padding:0 10px;white-space:nowrap;justify-content:center}
+#uVal::-webkit-inner-spin-button,#uVal::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}#uVal{-moz-appearance:textfield}
+.utBtns{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.utBtns>*{justify-content:center;min-height:48px;font-size:14px;padding:6px}
+#uMsg:empty{display:none}#uMsg{color:var(--muted);font-size:14px}
+#utD .utBox{max-height:40svh}#utD .dlg{gap:10px}
 #uMsg{font-size:13px;color:var(--muted)}
 .modes button{flex-direction:column;justify-content:center;gap:2px;padding:8px 4px;font-size:13px}
 .modes button svg{width:22px;height:22px}
@@ -291,14 +298,16 @@ header .row svg{width:22px;height:22px}
 <dialog id="utD">
   <div class="dlg">
     <div class="row" style="justify-content:space-between"><span class="lbl" id="utTitle">Lectura</span><button class="x" id="utClose" aria-label="Cerrar">✕</button></div>
-    <div class="row"><label class="btn primary" for="uCam">Foto de la pantalla<input class="hidden-input" id="uCam" type="file" accept="image/*" capture="environment"></label>
+    <div class="utTop"><div class="utValW"><input id="uVal" type="number" step="0.01" min="0" inputmode="decimal" aria-label="Espesor en mm"><span>mm</span></div>
+      <button id="uOk" class="primary">✓ Guardar</button></div>
+    <span id="uMsg"></span>
+    <div class="utBtns"><label class="btn" for="uCam">Otra foto<input class="hidden-input" id="uCam" type="file" accept="image/*" capture="environment"></label>
+      <button id="uRead">Leer de nuevo</button>
       <label class="btn" for="uGal">Galería<input class="hidden-input" id="uGal" type="file" accept="image/*"></label></div>
     <div class="utBox" id="utBox" hidden><canvas id="utCv"></canvas></div>
     <p class="hint" id="utHint">Saca la foto de frente a la pantalla del medidor, sin reflejos.</p>
-    <div class="row"><button id="uRead">Leer de nuevo</button></div>
     <canvas id="utCrop" hidden></canvas>
-    <div class="row"><label for="uVal">Espesor</label><input id="uVal" type="number" step="0.01" min="0" inputmode="decimal"> <span>mm</span> <span id="uMsg"></span></div>
-    <div class="row"><button id="uOk" class="primary">Guardar lectura</button><button id="uDel">Quitar punto</button></div>
+    <div class="row"><button id="uDel">Quitar punto</button></div>
   </div>
 </dialog>
 <dialog id="pv">
@@ -620,7 +629,7 @@ function utLoad(f){if(!f)return;const im=new Image();im.onload=()=>{utImg=im;con
   im.onerror=()=>uMsg('No se pudo abrir la imagen.');im.src=URL.createObjectURL(f);}
 $('#uCam').onchange=e=>{utLoad(e.target.files[0]);e.target.value='';};
 $('#uGal').onchange=e=>{utLoad(e.target.files[0]);e.target.value='';};
-function utDraw(){const c=$('#utCv'),W=utImg.naturalWidth,Hh=utImg.naturalHeight,cw=$('#utBox').clientWidth||320,d=window.devicePixelRatio||1;
+function utDraw(){const c=$('#utCv'),W=utImg.naturalWidth,Hh=utImg.naturalHeight,cw=Math.min($('#utBox').clientWidth||320,innerHeight*.4*W/Hh),d=window.devicePixelRatio||1;c.style.width=cw+'px';c.style.margin='0 auto';
   utK=cw/W;c.width=cw*d;c.height=Hh*utK*d;c.style.height=Hh*utK+'px';const g=c.getContext('2d');g.setTransform(d*utK,0,0,d*utK,0,0);g.drawImage(utImg,0,0);
   const r=utSel;g.fillStyle='rgba(0,0,0,.45)';g.fillRect(0,0,W,r.y);g.fillRect(0,r.y+r.h,W,Hh-r.y-r.h);g.fillRect(0,r.y,r.x,r.h);g.fillRect(r.x+r.w,r.y,W-r.x-r.w,r.h);
   g.lineWidth=3/utK;g.strokeStyle='#ffd400';g.strokeRect(r.x,r.y,r.w,r.h);
@@ -756,7 +765,7 @@ async function autoFindGeneric(){const W=utImg.naturalWidth,Hh=utImg.naturalHeig
     utSel={x:Math.max(0,(b.x0-mx)/k),y:Math.max(0,(b.y0-my)/k),w:Math.min(W,(b.x1-b.x0+2*mx)/k),h:Math.min(Hh,(b.y1-b.y0+2*my)/k)};utDraw();}
   return best;}
 let autoSave=false,lastAuto=null;
-function busy(b){reading=b;$('#busyOv').hidden=!b;$('#uOk').disabled=b;$('#uOk').textContent=b?'Leyendo…':'Guardar lectura';}
+function busy(b){reading=b;$('#busyOv').hidden=!b;$('#uOk').disabled=b;$('#uOk').textContent=b?'Leyendo…':'✓ Guardar';}
 const ocrErr=e=>location.protocol==='https:'&&/github\.io$/.test(location.hostname)?`No se pudo leer (${(e&&e.message)||e}). Revisa la conexión la primera vez o escribe el valor.`:'La lectura automática funciona en la app instalada; aquí escribe el valor.';
 async function utAuto(){if(!utImg)return;uMsg('Buscando el valor en la pantalla…');busy(true);let f=null;
   try{f=await autoFind();}catch(e){busy(false);showUTD();uMsg(ocrErr(e));return;}

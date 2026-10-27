@@ -775,7 +775,7 @@ async function utAuto(){if(!utImg)return;uMsg('Buscando el valor en la pantalla�
     showUTD();uMsg(`Leído (${Math.round(f.conf)}%). Confirma y guarda.`);}
   else{showUTD();uMsg('No encontré el valor; probando en la zona marcada…');await utRead();}}
 let reading=false;
-async function utRead(){if(!utImg||reading)return;busy(true);const c=prep(),cr=$('#utCrop');cr.hidden=false;cr.width=c.width;cr.height=c.height;cr.getContext('2d').drawImage(c,0,0);
+async function utRead(){if(!utImg||reading)return;busy(true);const c=prep(),cr=$('#utCrop');cr.width=c.width;cr.height=c.height;cr.getContext('2d').drawImage(c,0,0);
   cr.style.width=Math.min(c.width,320)+'px';uMsg('Leyendo la zona marcada…');
   try{const w=await getW();await w.setParameters({tessedit_pageseg_mode:'7'});const{data}=await w.recognize(c),r=parseVal(data.text);
     if(r&&r.v>.2&&r.v<300){$('#uVal').value=r.v.toFixed(2);utDraw();uMsg(r.guess?'Leído; revisa la posición del decimal.':'Leído. Confirma y guarda.');}
@@ -930,7 +930,9 @@ function arCapture(view){try{
 /* ---------- instalación ---------- */
 let deferred=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;$('#install').hidden=false;});
 $('#install').onclick=async()=>{if(!deferred)return;deferred.prompt();await deferred.userChoice;deferred=null;$('#install').hidden=true;};
-if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}
+if('serviceWorker' in navigator){const had=!!navigator.serviceWorker.controller;let rl=false;
+  navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(r=>{r.update();document.addEventListener('visibilitychange',()=>{if(!document.hidden)r.update().catch(()=>{});});}).catch(()=>{});
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!had||rl||$('#utD').open)return;rl=true;location.reload();});}
 
 /* ---------- ejemplo inicial ---------- */
 function sample(){const c=document.createElement('canvas');c.width=1400;c.height=1050;const g=c.getContext('2d');

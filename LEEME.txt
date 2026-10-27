@@ -4,6 +4,8 @@ https://moliveras-ops.github.io/Dimension-/
 Barra inferior: Medir | camara | Espesores.
  - Medir: la camara toma la foto. Chips sobre la foto: Parche, Largo, Diametro, Area,
    En vivo RA, Recalibrar, Guardar vista. Calibracion con marcador o diametro de tubo.
+ - En vivo RA: chip "Modo" cambia entre Linea, Parche (3 toques: 2 esquinas + lado opuesto)
+   y Area (contorno libre; toca el primer punto o "Cerrar area"). Da largo x ancho, area y perimetro.
  - Espesores: la camara lee la pantalla del medidor y coloca el valor en la imagen.
    Chips: Foto panel, Min., Guardar vista, Compartir.
 Accesos directos: manten presionado el icono de la app -> "Leer espesor" o "Medir con camara".

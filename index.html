@@ -109,7 +109,9 @@ dialog::backdrop{background:rgba(5,9,13,.6)}
 .arBar{bottom:0;padding-block:16px calc(14px + env(safe-area-inset-bottom,0px));flex-direction:column;background:linear-gradient(transparent,rgba(0,0,0,.75))}
 .arChips,.arMain{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
 .arChips button{min-height:44px;font-size:14px;padding:8px 14px}
-#arChain[aria-pressed="true"],#arAxis.on{background:#22d3ee;color:#04161a;border-color:transparent}
+.arBar #arClose{background:#22d3ee;color:#04161a;border-color:transparent;font-size:18px}
+#arMode{font-weight:600}
+#arChain[aria-pressed="true"],#arAxis.on,#arMode.on{background:#22d3ee;color:#04161a;border-color:transparent}
 .arTip{font-size:12px;opacity:.8;text-shadow:0 1px 2px #000}
 .arBar button,.arTop button{min-height:52px;padding:10px 18px;font-size:16px;background:rgba(20,32,43,.85);color:#fff;border-color:rgba(255,255,255,.3)}
 .arBar #arAdd{background:var(--accent);color:var(--accent-ink);border-color:transparent;font-size:18px;min-width:120px}
@@ -327,8 +329,8 @@ header .row svg{width:22px;height:22px}
   <div class="arTop"><span id="arStatus">Mueve el teléfono despacio sobre la superficie.</span><button id="arExit">Salir</button></div>
   <div class="arRead" id="arRead"></div>
   <div class="arBar">
-    <div class="arChips"><button id="arAxis">Eje: libre</button><button id="arChain" aria-pressed="false">Cadena</button><button id="arShot">Foto</button></div>
-    <div class="arMain"><button id="arUndo">Deshacer</button><button id="arAdd">+ Punto</button></div>
+    <div class="arChips"><button id="arMode" class="on">Modo: Línea</button><button id="arAxis">Eje: libre</button><button id="arChain" aria-pressed="false">Cadena</button><button id="arShot">Foto</button></div>
+    <div class="arMain"><button id="arUndo">Deshacer</button><button id="arAdd">+ Punto</button><button id="arClose" hidden>Cerrar área</button></div>
     <span class="arTip">Toca en cualquier parte de la pantalla para marcar</span>
   </div>
 </div>
@@ -337,7 +339,7 @@ header .row svg{width:22px;height:22px}
 (()=>{
 const $=s=>document.querySelector(s);
 const cv=$('#cv'),ctx=cv.getContext('2d'),loupe=$('#loupe'),lctx=loupe.getContext('2d'),stage=$('#stage');
-const APP_VER=31;
+const APP_VER=32;
 $('#ver').textContent='v'+APP_VER;$('#ver').title='Versión '+APP_VER;
 try{const pv=+localStorage.getItem('ver');if(pv&&pv!==APP_VER)setTimeout(()=>toast('App actualizada a la versión '+APP_VER),600);localStorage.setItem('ver',APP_VER);}catch(_){}
 const C_MARK='#22d3ee',C_MEAS='#ffd400',C_SEL='#ff6b2c',C_UT='#7dff9b',C_LOW='#ff4d4d';
@@ -378,7 +380,7 @@ function calib(){
   if(marker.length<needCal()){H=null;return;}
   if(calMode==='tube'){const px=dist(marker[0],marker[1]);if(px<1){H=null;return;}const s=OD/10/px;H=[s,0,0,0,s,0,0,0,1];return;}
   const q=sortQuad(marker);H=homog(q,[[0,0],[S,0],[S,S],[0,S]]);}
-function calc(m){if(m.type==='ut')return{e:m.e};if(m.type==='ar')return{v:m.v};if(!H)return null;const q=m.pts.map(p=>apply(H,p));
+function calc(m){if(m.type==='ut')return{e:m.e};if(m.type==='ar')return m.k==='rect'?{L:m.L,W:m.W,A:m.A}:m.k==='area'?{A:m.A,P:m.P}:{v:m.v};if(!H)return null;const q=m.pts.map(p=>apply(H,p));
   if(m.type==='dist'||m.type==='diam')return{v:dist(q[0],q[1])};
   if(m.type==='rect'){const a=(dist(q[0],q[1])+dist(q[2],q[3]))/2,b=(dist(q[1],q[2])+dist(q[3],q[0]))/2;
     return{L:Math.max(a,b),W:Math.min(a,b),A:area(q)};}
@@ -386,7 +388,7 @@ function calc(m){if(m.type==='ut')return{e:m.e};if(m.type==='ar')return{v:m.v};i
 const f1=x=>x.toFixed(1),f0=x=>Math.round(x).toLocaleString('es-CL');
 function fmt(m,short){const r=calc(m);if(!r)return'—';
   if(m.type==='ut')return(m.e==null?'sin lectura':`${m.e.toFixed(2)} mm`+(low(m)?(short?' ▼':' · BAJO MÍN.'):''))+(!short&&!m.pts.length?' · sin ubicar':'');
-  if(m.type==='ar')return`${f1(r.v)} cm · ${m.ax||'RA'}`;
+  if(m.type==='ar')return m.k==='rect'?(short?`${f1(r.L)} × ${f1(r.W)} cm`:`${f1(r.L)} × ${f1(r.W)} cm · ${f0(r.A)} cm² · RA`):m.k==='area'?(short?`${f0(r.A)} cm²`:`${f0(r.A)} cm² · perím. ${f1(r.P)} cm · RA`):`${f1(r.v)} cm · ${m.ax||'RA'}`;
   if(m.type==='dist')return`${f1(r.v)} cm`;
   if(m.type==='diam')return`Ø ${f1(r.v)} cm`;
   if(m.type==='rect')return short?`${f1(r.L)} × ${f1(r.W)} cm`:`${f1(r.L)} × ${f1(r.W)} cm · ${f0(r.A)} cm²`;
@@ -551,9 +553,9 @@ $('#fGal').onchange=e=>{load(e.target.files[0]);e.target.value='';};
 /* ---------- exportar ---------- */
 function rows(){return visList().map(m=>{const r=calc(m)||{};
   return[tagOf(m),NAMES[m.type],
-    m.type==='rect'?f1(r.L):m.type==='dist'||m.type==='diam'||m.type==='ar'?f1(r.v):'',
-    m.type==='rect'?f1(r.W):'',
-    m.type==='rect'||m.type==='poly'?f0(r.A).replace(/\./g,''):'',
+    m.type==='rect'||m.k==='rect'?f1(r.L):m.type==='dist'||m.type==='diam'||(m.type==='ar'&&!m.k)?f1(r.v):'',
+    m.type==='rect'||m.k==='rect'?f1(r.W):'',
+    m.type==='rect'||m.type==='poly'||m.k==='rect'||m.k==='area'?f0(r.A).replace(/\./g,''):'',
     m.type==='ut'&&m.e!=null?m.e.toFixed(2):'',m.type==='ut'&&m.e!=null&&tMin?(low(m)?'Bajo mínimo':'OK'):'',m.note];});}
 const HEAD=['ID','Tipo','Largo/Ø (cm)','Ancho (cm)','Área (cm²)','Espesor (mm)','Estado','Nota'];
 $('#copy').onclick=()=>{if(!visList().length)return toast('No hay mediciones para copiar.');
@@ -865,9 +867,9 @@ $('#arBtn').onclick=async()=>{
     const local=await session.requestReferenceSpace('local'),viewer=await session.requestReferenceSpace('viewer');
     const hts=await session.requestHitTestSource({space:viewer});
     if(ended)throw new Error('ended');
-    xr={session,gl,local,hts,pts:[],segs:[],hist:[],hit:null,P:null,V:null,cam:null,axis:0,chain:false,wantShot:false,bind:null};
+    xr={session,gl,local,hts,pts:[],items:[],mode:0,hist:[],hit:null,P:null,V:null,cam:null,axis:0,chain:false,wantShot:false,bind:null};
     arShots=[];arSt('Mueve el teléfono despacio sobre la superficie.');$('#arRead').textContent='';arAxisUI();
-    $('#arChain').setAttribute('aria-pressed','false');
+    $('#arChain').setAttribute('aria-pressed','false');arUI2();
     session.requestAnimationFrame(arFrame);
   }catch(e){
     if(session){try{await session.end()}catch(_){}}
@@ -899,33 +901,66 @@ function stable(){const n=near();return n.length?[0,1,2].map(i=>n.reduce((s,q)=>
 function lockPt(a,p){if(!a)return p;if(xr.axis===1)return[p[0],a[1],p[2]];if(xr.axis===2)return[a[0],p[1],a[2]];return p;}
 function axisOf(a,b){const dy=Math.abs(b[1]-a[1]),dh=Math.hypot(b[0]-a[0],b[2]-a[2]),ang=Math.atan2(dy,dh)*180/Math.PI;
   return ang<8?'H':ang>82?'V':`Incl. ${Math.round(ang)}°`;}
+const v3={s:(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],a:(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],k:(a,k)=>[a[0]*k,a[1]*k,a[2]*k],
+  d:(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],x:(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],n:a=>Math.hypot(a[0],a[1],a[2])};
+const AR_MODES=['Línea','Parche','Área'];
+function rectOf(a,b,c){const ab=v3.s(b,a),L=v3.n(ab);if(L<1e-4)return null;const u=v3.k(ab,1/L),w=v3.s(c,a),h=v3.s(w,v3.k(u,v3.d(w,u)));
+  const x=L*100,y=v3.n(h)*100;return{ps:[a,b,v3.a(b,h),v3.a(a,h)],L:Math.max(x,y),W:Math.min(x,y),A:x*y};}
+function polyOf(ps){let s=[0,0,0],P=0;ps.forEach((p,i)=>{const q=ps[(i+1)%ps.length];s=v3.a(s,v3.x(p,q));P+=d3(p,q);});return{A:v3.n(s)/2*1e4,P:P*100};}
+const arTxt=it=>it.kind==='rect'?`M${it.n} ${f1(it.L)}×${f1(it.W)} cm`:it.kind==='area'?`M${it.n} ${f0(it.A)} cm²`:`M${it.n} ${f1(it.v)} cm ${it.ax}`.trim();
+const lastPt=()=>xr.pts[xr.pts.length-1];
+function nearFirst(){if(xr.mode!==2||xr.pts.length<3)return false;const s=proj(xr.pts[0]);return!!s&&Math.hypot(s[0]-innerWidth/2,s[1]-innerHeight/2)<34;}
+function arPreview(){const t=xr.hit?lockPt(lastPt(),xr.hit):null,n=xr.pts.length;if(!n)return null;
+  if(xr.mode===0||(xr.mode===1&&n===1)){if(!t)return{ps:xr.pts,closed:false};return{ps:[xr.pts[0],t],closed:false,txt:`${f1(d3(xr.pts[0],t)*100)} cm`};}
+  if(xr.mode===1){if(!t)return{ps:xr.pts,closed:false};const r=rectOf(xr.pts[0],xr.pts[1],t);if(!r)return{ps:xr.pts,closed:false};
+    return{ps:r.ps,closed:true,txt:`${f1(r.L)} × ${f1(r.W)} cm`};}
+  if(nearFirst())return{ps:xr.pts,closed:true,txt:`${f0(polyOf(xr.pts).A)} cm² · cerrar`};
+  const ps=t?[...xr.pts,t]:xr.pts;return{ps,closed:ps.length>=3,txt:ps.length>=3?`${f0(polyOf(ps).A)} cm²`:t?`${f1(d3(lastPt(),t)*100)} cm`:''};}
 function arDraw(){const W=innerWidth,Hh=innerHeight,cx=W/2,cy=Hh/2,stab=near().length>=4,col=!xr.hit?'#9aa4ad':stab?'#3cf08a':'#ffd400';let o='';
-  const seg=(a,b,dash,txt,c)=>{const A=proj(a),B=proj(b);if(!A||!B)return;
-    o+=`<line x1="${A[0]}" y1="${A[1]}" x2="${B[0]}" y2="${B[1]}" stroke="#000" stroke-opacity=".5" stroke-width="7"/><line x1="${A[0]}" y1="${A[1]}" x2="${B[0]}" y2="${B[1]}" stroke="${c}" stroke-width="3" ${dash?'stroke-dasharray="10 8"':''}/>`;
-    [A,B].forEach(s=>o+=`<circle cx="${s[0]}" cy="${s[1]}" r="7" fill="${c}" stroke="#000" stroke-width="2"/>`);
-    if(txt){const mx=(A[0]+B[0])/2,my=(A[1]+B[1])/2,w=txt.length*9+14;
-      o+=`<rect x="${mx-w/2}" y="${my-14}" width="${w}" height="26" rx="3" fill="rgba(8,12,16,.85)"/><text x="${mx}" y="${my+5}" fill="${c}" font-family="IBM Plex Mono,monospace" font-size="15" font-weight="600" text-anchor="middle">${txt}</text>`;}};
-  xr.segs.forEach(g=>seg(g.a,g.b,false,`M${g.n} ${f1(g.v)} ${g.ax==='H'||g.ax==='V'?g.ax:''}`.trim(),'#22d3ee'));
-  if(xr.pts.length===1){const s=proj(xr.pts[0]);if(s)o+=`<circle cx="${s[0]}" cy="${s[1]}" r="8" fill="#ffd400" stroke="#000" stroke-width="2"/>`;
-    if(xr.hit)seg(xr.pts[0],lockPt(xr.pts[0],xr.hit),true,'','#ffd400');}
+  const ln=(A,B,c,dash)=>o+=`<line x1="${A[0]}" y1="${A[1]}" x2="${B[0]}" y2="${B[1]}" stroke="#000" stroke-opacity=".5" stroke-width="7"/><line x1="${A[0]}" y1="${A[1]}" x2="${B[0]}" y2="${B[1]}" stroke="${c}" stroke-width="3" ${dash?'stroke-dasharray="10 8"':''}/>`;
+  const lab=(mx,my,txt,c)=>{const w=txt.length*9+14;o+=`<rect x="${mx-w/2}" y="${my-14}" width="${w}" height="26" rx="3" fill="rgba(8,12,16,.85)"/><text x="${mx}" y="${my+5}" fill="${c}" font-family="IBM Plex Mono,monospace" font-size="15" font-weight="600" text-anchor="middle">${txt}</text>`;};
+  const path=(ps,c,closed,dash)=>{const S=ps.map(p=>proj(p));if(S.some(q=>!q))return null;
+    if(closed&&S.length>=3)o+=`<polygon points="${S.map(q=>q.join(',')).join(' ')}" fill="${c}" fill-opacity=".16"/>`;
+    for(let i=0;i<S.length-(closed?0:1);i++)ln(S[i],S[(i+1)%S.length],c,dash);
+    S.forEach(q=>o+=`<circle cx="${q[0]}" cy="${q[1]}" r="7" fill="${c}" stroke="#000" stroke-width="2"/>`);return S;};
+  const mid=S=>S.length===2?[(S[0][0]+S[1][0])/2,(S[0][1]+S[1][1])/2]:[S.reduce((a,q)=>a+q[0],0)/S.length,S.reduce((a,q)=>a+q[1],0)/S.length];
+  xr.items.forEach(it=>{const S=path(it.ps,'#22d3ee',it.kind!=='line',false);if(S)lab(...mid(S),arTxt(it),'#22d3ee');});
+  const pv=arPreview();if(pv)path(pv.ps,'#ffd400',pv.closed,true);
+  if(nearFirst()){const s=proj(xr.pts[0]);if(s)o+=`<circle cx="${s[0]}" cy="${s[1]}" r="16" fill="none" stroke="#3cf08a" stroke-width="3"/>`;}
   o+=`<circle cx="${cx}" cy="${cy}" r="22" fill="none" stroke="${col}" stroke-width="3"/><circle cx="${cx}" cy="${cy}" r="3" fill="${col}"/>`;
   $('#arSvg').innerHTML=o;
-  $('#arRead').textContent=xr.pts.length===1&&xr.hit?`${f1(d3(xr.pts[0],lockPt(xr.pts[0],xr.hit))*100)} cm`:'';
-  if(!xr.hit)arSt('Buscando superficie… mueve el teléfono despacio.');
-  else{const dd=d3(xr.cam,xr.hit);arSt(`${xr.segs.length} medidas · superficie a ${dd.toFixed(2)} m`+(dd>1.5?' · acércate':dd<0.4?' · aléjate un poco, la cámara RA no enfoca tan cerca':'')+(stab?'':' · quieto…'));}}
-function arAdd(){if(!xr)return;if(!xr.hit)return arSt('Aún no hay superficie bajo el círculo.');
-  const p=lockPt(xr.pts[0],stable());xr.pts.push(p);buzz();
-  if(xr.pts.length===2){const[a,b]=xr.pts,v=d3(a,b)*100,ax=xr.axis?AXES[xr.axis]:axisOf(a,b);
+  $('#arRead').textContent=pv&&pv.txt?pv.txt:'';
+  const n=xr.pts.length,hint=xr.mode===1?(n===0?'Parche: marca una esquina':n===1?'Parche: marca la esquina siguiente del mismo lado':'Parche: marca el lado opuesto'):
+    xr.mode===2?(n<3?`Área: marca el contorno (${n} pts)`:nearFirst()?'Toca para cerrar el área':'Área: sigue el contorno o pulsa Cerrar'):'';
+  if(!xr.hit)arSt((hint?hint+' · ':'')+'Buscando superficie… mueve el teléfono despacio.');
+  else{const dd=d3(xr.cam,xr.hit);arSt((hint?hint+' · ':`${xr.items.length} medidas · `)+`superficie a ${dd.toFixed(2)} m`+(dd>1.5?' · acércate':dd<0.4?' · aléjate un poco, la cámara RA no enfoca tan cerca':'')+(stab?'':' · quieto…'));}}
+function arUI2(){if(!xr)return;const b=$('#arMode');b.textContent=`Modo: ${AR_MODES[xr.mode]}`;
+  $('#arChain').hidden=xr.mode!==0;$('#arClose').hidden=!(xr.mode===2&&xr.pts.length>=3);}
+function arCommit(kind,ps,r){const m={id:++seq,n:nextN('ar'),type:'ar',k:kind,pts:[],...r,ax:kind==='rect'?'Parche':'Área',note:''};measures.push(m);sel=m.id;
+  xr.items.push({kind,ps,...r,n:m.n,id:m.id});xr.pts=[];buzz();arUI2();}
+function arCloseArea(){if(!xr||xr.mode!==2||xr.pts.length<3)return;const ps=xr.pts.slice();arCommit('area',ps,polyOf(ps));}
+function arAdd(){if(!xr)return;if(nearFirst())return arCloseArea();
+  if(!xr.hit)return arSt('Aún no hay superficie bajo el círculo.');
+  const p=lockPt(lastPt(),stable());xr.pts.push(p);buzz();
+  if(xr.mode===0&&xr.pts.length===2){const[a,b]=xr.pts,v=d3(a,b)*100,ax=xr.axis?AXES[xr.axis]:axisOf(a,b);
     const m={id:++seq,n:nextN('ar'),type:'ar',pts:[],v,ax,note:''};measures.push(m);sel=m.id;
-    xr.segs.push({a,b,v,ax,n:m.n,id:m.id});xr.pts=xr.chain?[b]:[];buzz();}}
+    xr.items.push({kind:'line',ps:[a,b],v,ax,n:m.n,id:m.id});xr.pts=xr.chain?[b]:[];buzz();}
+  else if(xr.mode===1&&xr.pts.length===3){const r=rectOf(...xr.pts);
+    if(!r||r.W<0.5){xr.pts.pop();arSt('Marca el tercer punto en el lado opuesto del parche.');}
+    else{const{ps,...rr}=r;arCommit('rect',ps,rr);}}
+  arUI2();}
 $('#arAdd').onclick=e=>{e.stopPropagation();arAdd();};
+$('#arClose').onclick=e=>{e.stopPropagation();arCloseArea();};
+$('#arMode').onclick=e=>{e.stopPropagation();if(!xr)return;xr.mode=(xr.mode+1)%3;xr.pts=[];arUI2();};
 $('#arUI').addEventListener('click',e=>{if(e.target.closest('button'))return;if(!xr&&!arBusy)return arHide();arAdd();});
-$('#arUndo').onclick=e=>{e.stopPropagation();if(!xr)return;
-  if(xr.pts.length&&!(xr.chain&&xr.pts.length===1&&xr.segs.length))xr.pts.pop();
-  else if(xr.segs.length){const g=xr.segs.pop();measures=measures.filter(m=>m.id!==g.id);renum();xr.pts=xr.chain&&xr.segs.length?[xr.segs[xr.segs.length-1].b]:[];}};
+$('#arUndo').onclick=e=>{e.stopPropagation();if(!xr)return;const L=xr.items[xr.items.length-1];
+  if(xr.pts.length&&!(xr.mode===0&&xr.chain&&xr.pts.length===1&&L&&L.kind==='line'))xr.pts.pop();
+  else if(xr.items.length){const g=xr.items.pop();measures=measures.filter(m=>m.id!==g.id);renum();
+    const P=xr.items[xr.items.length-1];xr.pts=xr.mode===0&&xr.chain&&P&&P.kind==='line'?[P.ps[1]]:[];}
+  arUI2();};
 function arAxisUI(){const b=$('#arAxis');b.textContent=`Eje: ${['libre','horizontal','vertical'][xr.axis]}`;b.classList.toggle('on',xr.axis>0);}
 $('#arAxis').onclick=e=>{e.stopPropagation();if(!xr)return;xr.axis=(xr.axis+1)%3;arAxisUI();};
-$('#arChain').onclick=e=>{e.stopPropagation();if(!xr)return;xr.chain=!xr.chain;e.currentTarget.setAttribute('aria-pressed',xr.chain);if(!xr.chain&&xr.pts.length===1&&xr.segs.length)xr.pts=[];};
+$('#arChain').onclick=e=>{e.stopPropagation();if(!xr)return;xr.chain=!xr.chain;e.currentTarget.setAttribute('aria-pressed',xr.chain);if(!xr.chain&&xr.pts.length===1&&xr.items.length)xr.pts=[];};
 $('#arShot').onclick=e=>{e.stopPropagation();if(xr)xr.wantShot=true;};
 function arCapture(view){try{
   if(!view.camera||typeof XRWebGLBinding==='undefined')throw new Error('nocam');
@@ -936,16 +971,18 @@ function arCapture(view){try{
   const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d'),id=g.createImageData(w,h);
   for(let y=0;y<h;y++)id.data.set(px.subarray((h-1-y)*w*4,(h-y)*w*4),y*w*4);g.putImageData(id,0,0);
   const u=Math.max(1,w/900);g.lineCap='round';
-  xr.segs.forEach(sg=>{const A=proj(sg.a,w,h),B=proj(sg.b,w,h);if(!A||!B)return;
-    g.lineWidth=7*u;g.strokeStyle='rgba(0,0,0,.6)';g.beginPath();g.moveTo(...A);g.lineTo(...B);g.stroke();
-    g.lineWidth=3.5*u;g.strokeStyle='#ffd400';g.stroke();
-    [A,B].forEach(q=>{g.beginPath();g.arc(q[0],q[1],6*u,0,7);g.fillStyle='#ffd400';g.fill();});
-    const t=`M${sg.n} ${f1(sg.v)} cm ${sg.ax}`;g.font=`600 ${16*u}px "IBM Plex Mono",monospace`;const tw=g.measureText(t).width+14*u,mx=(A[0]+B[0])/2,my=(A[1]+B[1])/2;
+  xr.items.forEach(it=>{const S=it.ps.map(p=>proj(p,w,h));if(S.some(q=>!q))return;const closed=it.kind!=='line';
+    g.beginPath();S.forEach((q,i)=>i?g.lineTo(...q):g.moveTo(...q));if(closed){g.closePath();g.fillStyle='rgba(255,212,0,.16)';g.fill();}
+    g.lineWidth=7*u;g.strokeStyle='rgba(0,0,0,.6)';g.stroke();g.lineWidth=3.5*u;g.strokeStyle='#ffd400';g.stroke();
+    S.forEach(q=>{g.beginPath();g.arc(q[0],q[1],6*u,0,7);g.fillStyle='#ffd400';g.fill();});
+    const t=it.kind==='line'?`M${it.n} ${f1(it.v)} cm ${it.ax}`:it.kind==='rect'?`M${it.n} ${f1(it.L)} × ${f1(it.W)} cm · ${f0(it.A)} cm²`:`M${it.n} ${f0(it.A)} cm² · perím. ${f1(it.P)} cm`;
+    const mx=S.reduce((a,q)=>a+q[0],0)/S.length,my=S.reduce((a,q)=>a+q[1],0)/S.length;
+    g.font=`600 ${16*u}px "IBM Plex Mono",monospace`;const tw=g.measureText(t).width+14*u;
     g.fillStyle='rgba(8,12,16,.85)';g.fillRect(mx-tw/2,my-14*u,tw,28*u);g.fillStyle='#ffd400';g.textAlign='center';g.textBaseline='middle';g.fillText(t,mx,my+1*u);});
   g.font=`500 ${13*u}px "IBM Plex Mono",monospace`;g.textAlign='left';g.textBaseline='bottom';g.fillStyle='rgba(8,12,16,.8)';
   const stampTxt=new Date().toLocaleString('es-CL',{dateStyle:'short',timeStyle:'short'})+' · medición RA';g.fillRect(0,h-26*u,g.measureText(stampTxt).width+20*u,26*u);
   g.fillStyle='#fff';g.fillText(stampTxt,10*u,h-7*u);
-  arShots.push(c);addGal(c,xr.segs.map(g=>`M${g.n} ${f1(g.v)} cm ${g.ax}`).join(' · ')||'Medición RA');buzz();arSt(`Foto ${arShots.length} guardada`);
+  arShots.push(c);addGal(c,xr.items.map(arTxt).join(' · ')||'Medición RA');buzz();arSt(`Foto ${arShots.length} guardada`);
 }catch(e){arSt('Este teléfono no permite foto durante la RA (activa chrome://flags → WebXR Raw Camera Access).');}}
 
 /* ---------- instalación ---------- */

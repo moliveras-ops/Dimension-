@@ -226,7 +226,7 @@ dialog::backdrop{background:rgba(5,9,13,.6)}
       <label class="btn" for="uGal">Galería<input class="hidden-input" id="uGal" type="file" accept="image/*"></label></div>
     <div class="utBox" id="utBox" hidden><canvas id="utCv"></canvas></div>
     <p class="hint" id="utHint">Saca la foto de frente a la pantalla del medidor, sin reflejos.</p>
-    <div class="row"><label for="uType">Pantalla</label><select id="uType"><option value="auto">Automático</option><option value="seg">7 segmentos</option><option value="eng">Normal</option></select><button id="uRead">Leer valor</button></div>
+    <div class="row"><button id="uRead">Leer de nuevo</button></div>
     <canvas id="utCrop" hidden></canvas>
     <div class="row"><label for="uVal">Espesor</label><input id="uVal" type="number" step="0.01" min="0" inputmode="decimal"> <span>mm</span> <span id="uMsg"></span></div>
     <div class="row"><button id="uOk" class="primary">Guardar lectura</button><button id="uDel">Quitar punto</button></div>
@@ -524,7 +524,11 @@ $('#uGal').onchange=e=>{utLoad(e.target.files[0]);e.target.value='';};
 function utDraw(){const c=$('#utCv'),W=utImg.naturalWidth,Hh=utImg.naturalHeight,cw=$('#utBox').clientWidth||320,d=window.devicePixelRatio||1;
   utK=cw/W;c.width=cw*d;c.height=Hh*utK*d;c.style.height=Hh*utK+'px';const g=c.getContext('2d');g.setTransform(d*utK,0,0,d*utK,0,0);g.drawImage(utImg,0,0);
   const r=utSel;g.fillStyle='rgba(0,0,0,.45)';g.fillRect(0,0,W,r.y);g.fillRect(0,r.y+r.h,W,Hh-r.y-r.h);g.fillRect(0,r.y,r.x,r.h);g.fillRect(r.x+r.w,r.y,W-r.x-r.w,r.h);
-  g.lineWidth=3/utK;g.strokeStyle='#ffd400';g.strokeRect(r.x,r.y,r.w,r.h);}
+  g.lineWidth=3/utK;g.strokeStyle='#ffd400';g.strokeRect(r.x,r.y,r.w,r.h);
+  const v=parseFloat(String($('#uVal').value).replace(',','.'));
+  if(v>0){const t=`${utM?tagOf(utM)+' ':''}${v.toFixed(2)} mm`,fs=Math.max(22,Math.min(W,Hh)*.06);g.font=`700 ${fs}px "IBM Plex Mono",ui-monospace,monospace`;
+    const tw=g.measureText(t).width+fs*.6,th=fs*1.4,x=Math.min(Math.max(0,r.x),W-tw),y=r.y-th-fs*.2>0?r.y-th-fs*.2:Math.min(Hh-th,r.y+r.h+fs*.2);
+    g.fillStyle='rgba(8,12,16,.88)';g.fillRect(x,y,tw,th);g.fillStyle=low({type:'ut',e:v})?'#ff4d4d':'#7dff9b';g.textBaseline='middle';g.fillText(t,x+fs*.3,y+th/2);}}
 let utP0=null;
 $('#utCv').addEventListener('pointerdown',e=>{if(!utImg)return;e.preventDefault();$('#utCv').setPointerCapture(e.pointerId);const b=$('#utCv').getBoundingClientRect();utP0=[(e.clientX-b.left)/utK,(e.clientY-b.top)/utK];});
 $('#utCv').addEventListener('pointermove',e=>{if(!utP0)return;const b=$('#utCv').getBoundingClientRect(),p=[(e.clientX-b.left)/utK,(e.clientY-b.top)/utK];
@@ -543,16 +547,19 @@ function prep(){const r=utSel,k=Math.max(.3,Math.min(5,140/r.h)),w=Math.round(r.
   const o=document.createElement('canvas');o.width=w+2*pad;o.height=h+2*pad;const og=o.getContext('2d');og.fillStyle='#fff';og.fillRect(0,0,o.width,o.height);
   const t=document.createElement('canvas');t.width=w;t.height=h;t.getContext('2d').putImageData(id,0,0);og.drawImage(t,pad,pad);return o;}
 function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
-const ocrW={};
-async function getW(kind){if(ocrW[kind])return ocrW[kind];
-  if(!window.Tesseract)await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
-  const w=kind==='seg'?await Tesseract.createWorker('letsgodigital',0,{langPath:new URL('.',location.href).href.replace(/\/$/,''),gzip:false}):await Tesseract.createWorker('eng',1);
-  await w.setParameters({tessedit_char_whitelist:'0123456789.',tessedit_pageseg_mode:'7'});return ocrW[kind]=w;}
+let ocrW=null,ocrP=null;
+const libURL=f=>new URL('lib/'+f,location.href).href;
+function getW(){if(ocrW)return Promise.resolve(ocrW);if(ocrP)return ocrP;
+  ocrP=(async()=>{if(!window.Tesseract)await loadScript(libURL('tesseract.min.js'));
+    const w=await Tesseract.createWorker('eng',1,{workerPath:libURL('worker.min.js'),corePath:libURL(''),langPath:libURL('').replace(/\/$/,''),workerBlobURL:false,
+      logger:m=>{if(reading&&m&&/loading|initializ/i.test(m.status||''))uMsg(`Preparando el lector… ${Math.round((m.progress||0)*100)}%`);}});
+    await w.setParameters({tessedit_char_whitelist:'0123456789.',tessedit_pageseg_mode:'7'});return ocrW=w;})();
+  ocrP.catch(()=>{ocrP=null;});return ocrP;}
 function parseVal(t){t=(t||'').replace(/,/g,'.').replace(/[^0-9.]/g,' ').replace(/\.{2,}/g,'.');
   const dec=t.match(/\d{1,3}\.\d{1,3}/);if(dec)return{v:parseFloat(dec[0]),guess:false,dg:dec[0].replace('.','')};
   const ms=(t.match(/\d+/g)||[]).sort((x,y)=>y.length-x.length),n=ms[0];if(!n)return null;
   return{v:n.length>=3?parseFloat(n)/100:parseFloat(n),guess:true,dg:n};}
-async function autoFind(){const W=utImg.naturalWidth,Hh=utImg.naturalHeight,k=Math.min(1,1400/W),w=await getW('eng');
+async function autoFind(){const W=utImg.naturalWidth,Hh=utImg.naturalHeight,k=Math.min(1,1400/W),w=await getW();
   let best=null;
   for(const inv of [false,true]){const c=document.createElement('canvas');c.width=Math.round(W*k);c.height=Math.round(Hh*k);const g=c.getContext('2d');
     g.filter='grayscale(1) contrast(1.5)'+(inv?' invert(1)':'');g.drawImage(utImg,0,0,c.width,c.height);
@@ -565,27 +572,25 @@ async function autoFind(){const W=utImg.naturalWidth,Hh=utImg.naturalHeight,k=Ma
     utSel={x:Math.max(0,(b.x0-mx)/k),y:Math.max(0,(b.y0-my)/k),w:Math.min(W,(b.x1-b.x0+2*mx)/k),h:Math.min(Hh,(b.y1-b.y0+2*my)/k)};utDraw();}
   return best;}
 let autoSave=false,lastAuto=null;
-async function utAuto(){if(!utImg)return;uMsg('Buscando el valor en la pantalla…');reading=true;let f=null;
-  try{f=await autoFind();}catch(e){reading=false;uMsg('Lectura automática no disponible; escribe el valor.');return;}
-  reading=false;
-  if(f){$('#uVal').value=f.v.toFixed(2);
+function busy(b){reading=b;$('#uOk').disabled=b;$('#uOk').textContent=b?'Leyendo…':'Guardar lectura';}
+const ocrErr=e=>location.protocol==='https:'&&/github\.io$/.test(location.hostname)?`No se pudo leer (${(e&&e.message)||e}). Revisa la conexión la primera vez o escribe el valor.`:'La lectura automática funciona en la app instalada; aquí escribe el valor.';
+async function utAuto(){if(!utImg)return;uMsg('Buscando el valor en la pantalla…');busy(true);let f=null;
+  try{f=await autoFind();}catch(e){busy(false);uMsg(ocrErr(e));return;}
+  busy(false);
+  if(f){$('#uVal').value=f.v.toFixed(2);utDraw();
     if(autoSave&&f.conf>=70){autoSave=false;$('#uOk').click();toast(`Leído ${f.v.toFixed(2)} mm y colocado en la imagen.`);return;}
     uMsg(`Leído (${Math.round(f.conf)}%). Confirma y guarda.`);}
   else{uMsg('No encontré el valor; probando en la zona marcada…');await utRead();}}
 let reading=false;
-async function utRead(){if(!utImg||reading)return;reading=true;const c=prep(),cr=$('#utCrop');cr.hidden=false;cr.width=c.width;cr.height=c.height;cr.getContext('2d').drawImage(c,0,0);
-  cr.style.width=Math.min(c.width,320)+'px';uMsg('Leyendo…');
-  try{const kind=$('#uType').value,ok=p=>p&&p.v>.2&&p.v<300,rd=async k=>{const w=await getW(k),{data}=await w.recognize(c);const p=parseVal(data.text);return ok(p)?p:null;};
-    let res=null;
-    if(kind!=='auto')res=await rd(kind);
-    else{res=await rd('eng');
-      if(!res||res.guess){let sg=null;try{sg=await rd('seg');}catch(_){}
-        if(sg&&!sg.guess&&(!res||sg.dg===res.dg))res=sg;else if(!res)res=sg;}}
-    if(res){$('#uVal').value=res.v.toFixed(2);uMsg(res.guess?'Leído; revisa la posición del decimal.':'Leído. Confirma y guarda.');}
-    else uMsg('No se reconoció. Ajusta el recuadro o escribe el valor.');}
-  catch(e){uMsg('Lectura automática no disponible aquí; escribe el valor.');}
-  finally{reading=false;}}
-$('#uRead').onclick=()=>{autoSave=false;utRead();};$('#uType').onchange=utRead;
+async function utRead(){if(!utImg||reading)return;busy(true);const c=prep(),cr=$('#utCrop');cr.hidden=false;cr.width=c.width;cr.height=c.height;cr.getContext('2d').drawImage(c,0,0);
+  cr.style.width=Math.min(c.width,320)+'px';uMsg('Leyendo la zona marcada…');
+  try{const w=await getW();await w.setParameters({tessedit_pageseg_mode:'7'});const{data}=await w.recognize(c),r=parseVal(data.text);
+    if(r&&r.v>.2&&r.v<300){$('#uVal').value=r.v.toFixed(2);utDraw();uMsg(r.guess?'Leído; revisa la posición del decimal.':'Leído. Confirma y guarda.');}
+    else uMsg('No se reconoció. Encierra solo el número o escribe el valor.');}
+  catch(e){uMsg(ocrErr(e));}
+  finally{busy(false);}}
+$('#uRead').onclick=()=>{autoSave=false;utAuto();};
+$('#uVal').addEventListener('input',()=>{if(utImg)utDraw();});
 
 /* ---------- galería de imágenes ---------- */
 let gal=[],gi=0,db=null;

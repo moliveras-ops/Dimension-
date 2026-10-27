@@ -151,8 +151,18 @@ details[open] #calSum{display:none}
   .card{padding:10px}
   .modes button{font-size:12px;min-height:54px}
   .utAct{grid-template-columns:1fr}
-  .toast{bottom:calc(100px + env(safe-area-inset-bottom,0px))}
+  .toast{bottom:calc(128px + env(safe-area-inset-bottom,0px))}
 }
+.badge{top:64px;bottom:auto}
+.quick{position:absolute;left:66px;right:0;bottom:10px;z-index:2;display:flex;gap:6px;overflow-x:auto;padding-right:10px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.quick::-webkit-scrollbar{display:none}
+.quick button,.quick label{flex:none;min-height:44px;padding:8px 14px;border-radius:22px;background:rgba(8,12,16,.78);color:#fff;border:1px solid rgba(255,255,255,.22);font-size:14px;font-weight:600;white-space:nowrap}
+.quick [aria-pressed="true"]{background:#f5c518;color:#1d1600;border-color:transparent}
+.quick .go{background:#22d3ee;color:#04161a;border-color:transparent}
+.busyOv{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:3;background:rgba(8,12,16,.85);color:#fff;padding:14px 18px;border-radius:10px;display:flex;gap:10px;align-items:center;font-weight:600}
+.spin{width:18px;height:18px;border:3px solid rgba(255,255,255,.3);border-top-color:#f5c518;border-radius:50%}
+@media (prefers-reduced-motion:no-preference){.spin{animation:sp .8s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}}
+@media (max-width:860px){#cardModes,.utAct,#utHelp,#rowUndoUT{display:none!important}}
 #printArea{display:none}
 @media print{body>*:not(#printArea){display:none!important}#printArea{display:block}:root{padding:0!important}}
 .x{min-height:32px;padding:4px 8px;background:transparent}
@@ -191,6 +201,8 @@ details[open] #calSum{display:none}
       <canvas id="loupe" hidden></canvas>
       <button class="fab" id="fabUndo" aria-label="Deshacer"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>
       <div class="badge" id="badge" hidden>EJEMPLO</div>
+      <div class="quick" id="quick"></div>
+      <div class="busyOv" id="busyOv" hidden><span class="spin"></span>Leyendo pantalla…</div>
       <div class="empty" id="empty" hidden><p>Toma una foto con el marcador o con un tubo de diámetro conocido a la vista.</p></div>
     </div>
 
@@ -213,9 +225,9 @@ details[open] #calSum{display:none}
             <input class="hidden-input" id="uCam2" type="file" accept="image/*" capture="environment"></label>
           <label class="btn" for="fCam2">Foto del panel<input class="hidden-input" id="fCam2" type="file" accept="image/*" capture="environment"></label>
         </div>
-        <p class="hint">Fotografía la pantalla del medidor: la app lee el espesor y luego tocas en la foto del panel dónde se midió. También puedes tocar primero el punto.</p>
+        <p class="hint" id="utHelp">Fotografía la pantalla del medidor: la app lee el espesor y luego tocas en la foto del panel dónde se midió. También puedes tocar primero el punto.</p>
         <div class="row" id="rowMin"><label for="tMin">Espesor mínimo requerido</label><input id="tMin" type="number" step="0.01" min="0" placeholder="—"> <span>mm</span></div>
-        <div class="row"><button id="undoUT">Quitar último punto</button></div>
+        <div class="row" id="rowUndoUT"><button id="undoUT">Quitar último punto</button></div>
       </div>
 
       <div class="card" id="cardModes">
@@ -420,7 +432,7 @@ function commit(){if(mode!=='poly'&&mode!=='rect'&&cur.length<2)return;
 function setMode(m){measMode=m;cur=[];mode=m==='ut'?'ut':H?m:'marker';
   document.querySelectorAll('#modes button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===m));ui();draw();}
 document.querySelectorAll('#modes button').forEach(b=>b.onclick=()=>setMode(b.dataset.m));
-function setApp(a,quiet){app=a;$('#camFab').htmlFor=a==='ut'?'uCam2':'fCam';$('#camFab').setAttribute('aria-label',a==='ut'?'Leer espesor del medidor':'Tomar foto');try{localStorage.setItem('app',a)}catch(_){}
+function setApp(a,quiet){app=a;if(a==='ut')setTimeout(()=>getW().catch(()=>{}),400);$('#camFab').htmlFor=a==='ut'?'uCam2':'fCam';$('#camFab').setAttribute('aria-label',a==='ut'?'Leer espesor del medidor':'Tomar foto');try{localStorage.setItem('app',a)}catch(_){}
   document.querySelectorAll('#appTabs button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.app===a));
   const ut=a==='ut';$('#cardCal').hidden=ut;$('#cardModes').hidden=ut;$('#cardUT').hidden=!ut;$('#arBtn').hidden=ut;
   $('#resTitle').textContent=ut?'Lecturas de espesor':'Mediciones';
@@ -428,6 +440,7 @@ function setApp(a,quiet){app=a;$('#camFab').htmlFor=a==='ut'?'uCam2':'fCam';$('#
   if(ut){cur=[];mode='ut';}else{if(measMode==='ut')measMode='rect';setMode(measMode);}
   const sv=visList().find(m=>m.id===sel);if(!sv)sel=null;ui();renderList();draw();}
 document.querySelectorAll('#appTabs button').forEach(b=>b.onclick=()=>setApp(b.dataset.app));
+document.addEventListener('click',e=>{const l=e.target.closest('label');if(l&&l.htmlFor==='uCam2')getW().catch(()=>{});},true);
 $('#fabUndo').onclick=()=>{(app==='ut'?$('#undoUT'):$('#undo')).click();};
 $('#undoUT').onclick=()=>{const L=visList();if(!L.length)return;const m=L[L.length-1];measures=measures.filter(x=>x!==m);renum();renderList();draw();ui();};
 $('#undo').onclick=()=>{if(cur.length)cur.pop();else if(mode==='marker'&&marker.length){marker.pop();calib();}ui();draw();};
@@ -440,7 +453,20 @@ document.querySelectorAll('#calSeg button').forEach(b=>b.onclick=()=>{if(calMode
 $('#tOD').addEventListener('input',e=>{const v=parseFloat(e.target.value);if(v>0){OD=v;try{localStorage.setItem('tOD',v)}catch(_){};calib();ui();draw();renderList();}});
 $('#mSize').addEventListener('input',e=>{const v=parseFloat(e.target.value);if(v>0){S=v;try{localStorage.setItem('mSize',v)}catch(_){};calib();ui();draw();renderList();}});
 
-function ui(){
+function shareTxt(){const L=visList();if(!L.length)return toast('No hay datos para compartir.');const t=[HEAD,...rows()].map(r=>r.join('\t')).join('\n');
+  if(navigator.share)navigator.share({title:'Mediciones',text:t}).catch(()=>{});else navigator.clipboard.writeText(t).then(()=>toast('Copiado.'),()=>toast('No se pudo copiar.'));}
+function renderQuick(){const q=$('#quick');const B=[];
+  if(app==='medir'){[['rect','Parche'],['dist','Largo'],['diam','Ø Diámetro'],['poly','Área']].forEach(([m,t])=>B.push(`<button data-q="m:${m}" aria-pressed="${measMode===m}">${t}</button>`));
+    if(mode==='poly'&&cur.length>=3)B.unshift('<button class="go" data-q="close">Cerrar área</button>');
+    B.push('<button data-q="ra">En vivo RA</button>','<button data-q="recal">Recalibrar</button>','<button data-q="save">Guardar vista</button>');}
+  else{B.push('<label for="fCam2">Foto panel</label>',`<button data-q="min">Mín. ${tMin?f2(tMin)+' mm':'—'}</button>`,'<button data-q="save">Guardar vista</button>','<button data-q="share">Compartir</button>');}
+  q.innerHTML=B.join('');}
+$('#quick').addEventListener('click',e=>{const b=e.target.closest('[data-q]');if(!b)return;const k=b.dataset.q;
+  if(k.startsWith('m:'))setMode(k.slice(2));else if(k==='close')$('#close').click();else if(k==='ra')$('#arBtn').click();
+  else if(k==='recal'){$('#recal').click();$('#cardCal').open=true;}else if(k==='save')$('#galSave').click();else if(k==='share')shareTxt();
+  else if(k==='min'){$('#cardUT').scrollIntoView({block:'center',behavior:'smooth'});setTimeout(()=>$('#tMin').focus(),300);}
+  renderQuick();});
+function ui(){renderQuick();
   const n=$('#stepN'),t=$('#stepT');
   if(app==='ut'&&!img){n.textContent='1';t.textContent='Toma la foto del panel o lee primero el espesor del medidor.';}
   else if(!img){n.textContent='1';t.textContent=calMode==='marker'?`Toma una foto con el marcador de ${f1(S)} cm sobre la superficie.`:`Toma una foto de frente donde se vea un tubo de Ø ${f1(OD)} mm.`;}
@@ -540,14 +566,15 @@ let tt;function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clea
 
 /* ---------- lectura de espesores desde la pantalla del medidor ---------- */
 try{const v=parseFloat(localStorage.getItem('tMin'));if(v>0){tMin=v;$('#tMin').value=v;}}catch(e){}
-$('#tMin').addEventListener('input',e=>{tMin=parseFloat(e.target.value)||0;try{localStorage.setItem('tMin',tMin)}catch(_){};renderList();draw();});
+$('#tMin').addEventListener('input',e=>{tMin=parseFloat(e.target.value)||0;renderQuick();try{localStorage.setItem('tMin',tMin)}catch(_){};renderList();draw();});
 let utM=null,utImg=null,utSel=null,utK=1;
 const uMsg=t=>$('#uMsg').textContent=t;
-function openUT(m){utM=m;utImg=null;$('#utTitle').textContent=`Lectura ${tagOf(m)}`;$('#uVal').value=m.e!=null?m.e.toFixed(2):'';uMsg('');
+function openUT(m,silent){utM=m;utImg=null;$('#utTitle').textContent=`Lectura ${tagOf(m)}`;$('#uVal').value=m.e!=null?m.e.toFixed(2):'';uMsg('');
   $('#utBox').hidden=true;$('#utCrop').hidden=true;$('#utHint').textContent='Saca la foto de frente a la pantalla del medidor, sin reflejos.';
-  if(!$('#utD').open)$('#utD').showModal();}
+  if(!silent&&!$('#utD').open)$('#utD').showModal();}
+function showUTD(){if(!$('#utD').open)$('#utD').showModal();$('#utBox').hidden=!utImg;if(utImg)requestAnimationFrame(utDraw);}
 $('#uCam2').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
-  const m={id:++seq,n:nextN('ut'),type:'ut',pts:[],e:null,note:'',ev:null};autoSave=true;openUT(m);utLoad(f);};
+  const m={id:++seq,n:nextN('ut'),type:'ut',pts:[],e:null,note:'',ev:null};autoSave=true;openUT(m,true);busy(true);utLoad(f);};
 $('#fCam2').onchange=e=>{load(e.target.files[0]);e.target.value='';};
 $('#utClose').onclick=()=>{autoSave=false;$('#utD').close();};
 $('#uOk').onclick=()=>{const v=parseFloat(String($('#uVal').value).replace(',','.'));if(!(v>0))return uMsg('Ingresa un valor válido.');
@@ -681,9 +708,11 @@ async function lcdRead(){const L=lcdPrep(utImg);if(!L)return null;const w=await 
       if(!best||score>best.score)best={v,conf:Math.max(wd.confidence,ok&&dg.length>=3&&dg.length<=5?75:0),score,guess};}
     if(best&&!best.guess)break;}
   await w.setParameters({tessedit_pageseg_mode:'7'});
+  utSel={x:Math.max(0,L.box.x-L.box.w*.1),y:Math.max(0,L.box.y-L.box.h*.15),w:L.box.w*1.2,h:L.box.h*1.3};
+  if(!best)return{miss:true};
   if(best){utSel={x:Math.max(0,L.box.x-L.box.w*.1),y:Math.max(0,L.box.y-L.box.h*.15),w:L.box.w*1.2,h:L.box.h*1.3};utDraw();}
   return best;}
-async function autoFind(){try{const r=await lcdRead();if(r)return r;}catch(e){}
+async function autoFind(){try{const r=await lcdRead();if(r&&r.miss)return null;if(r)return r;}catch(e){}
   return autoFindGeneric();}
 async function autoFindGeneric(){const W=utImg.naturalWidth,Hh=utImg.naturalHeight,k=Math.min(1,1400/W),w=await getW();
   let best=null;
@@ -698,15 +727,15 @@ async function autoFindGeneric(){const W=utImg.naturalWidth,Hh=utImg.naturalHeig
     utSel={x:Math.max(0,(b.x0-mx)/k),y:Math.max(0,(b.y0-my)/k),w:Math.min(W,(b.x1-b.x0+2*mx)/k),h:Math.min(Hh,(b.y1-b.y0+2*my)/k)};utDraw();}
   return best;}
 let autoSave=false,lastAuto=null;
-function busy(b){reading=b;$('#uOk').disabled=b;$('#uOk').textContent=b?'Leyendo…':'Guardar lectura';}
+function busy(b){reading=b;$('#busyOv').hidden=!b;$('#uOk').disabled=b;$('#uOk').textContent=b?'Leyendo…':'Guardar lectura';}
 const ocrErr=e=>location.protocol==='https:'&&/github\.io$/.test(location.hostname)?`No se pudo leer (${(e&&e.message)||e}). Revisa la conexión la primera vez o escribe el valor.`:'La lectura automática funciona en la app instalada; aquí escribe el valor.';
 async function utAuto(){if(!utImg)return;uMsg('Buscando el valor en la pantalla…');busy(true);let f=null;
-  try{f=await autoFind();}catch(e){busy(false);uMsg(ocrErr(e));return;}
+  try{f=await autoFind();}catch(e){busy(false);showUTD();uMsg(ocrErr(e));return;}
   busy(false);
   if(f){$('#uVal').value=f.v.toFixed(2);utDraw();
     if(autoSave&&f.conf>=70){autoSave=false;$('#uOk').click();toast(`Leído ${f.v.toFixed(2)} mm y colocado en la imagen.`);return;}
-    uMsg(`Leído (${Math.round(f.conf)}%). Confirma y guarda.`);}
-  else{uMsg('No encontré el valor; probando en la zona marcada…');await utRead();}}
+    showUTD();uMsg(`Leído (${Math.round(f.conf)}%). Confirma y guarda.`);}
+  else{showUTD();uMsg('No encontré el valor; probando en la zona marcada…');await utRead();}}
 let reading=false;
 async function utRead(){if(!utImg||reading)return;busy(true);const c=prep(),cr=$('#utCrop');cr.hidden=false;cr.width=c.width;cr.height=c.height;cr.getContext('2d').drawImage(c,0,0);
   cr.style.width=Math.min(c.width,320)+'px';uMsg('Leyendo la zona marcada…');
@@ -883,7 +912,8 @@ function sample(){const c=document.createElement('canvas');c.width=1400;c.height
   measures=[m1,m2,p1,p2];sel=1;calib();mode=measMode;}
 sample();
 try{const a=localStorage.getItem('app');if(a==='ut'||location.hash==='#espesores')app='ut';}catch(_){}
-if(location.hash==='#espesores')app='ut';
+if(location.hash==='#espesores')app='ut';if(location.hash==='#medir')app='medir';
+window.addEventListener('hashchange',()=>{if(location.hash==='#espesores')setApp('ut');else if(location.hash==='#medir')setApp('medir');});
 if(matchMedia('(max-width:860px)').matches)$('#cardCal').open=false;
 new ResizeObserver(fit).observe(stage);fit();setApp(app);
 })();
